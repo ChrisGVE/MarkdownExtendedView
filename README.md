@@ -91,4 +91,4 @@ MarkdownView(content)
 
 ## License
 
-MIT License - See LICENSE file for details.
+Proprietary - Copyright (c) 2025 Christian C. Berclaz. All rights reserved.
