@@ -123,3 +123,49 @@ public extension EnvironmentValues {
         set { self[MarkdownLinkHandlerKey.self] = newValue }
     }
 }
+
+// MARK: - View Modifiers
+
+public extension View {
+
+    /// Enables specific Markdown features for this view hierarchy.
+    ///
+    /// By default, all opt-in features are disabled. Use this modifier to
+    /// enable features like clickable links or image loading.
+    ///
+    /// ```swift
+    /// // Enable links only
+    /// MarkdownView(content)
+    ///     .markdownFeatures(.links)
+    ///
+    /// // Enable multiple features
+    /// MarkdownView(content)
+    ///     .markdownFeatures([.links, .images])
+    /// ```
+    ///
+    /// - Parameter features: The features to enable.
+    /// - Returns: A view with the specified features enabled.
+    func markdownFeatures(_ features: MarkdownFeatures) -> some View {
+        environment(\.markdownFeatures, features)
+    }
+
+    /// Sets a custom handler for link taps in Markdown content.
+    ///
+    /// When a link is tapped and the ``MarkdownFeatures/links`` feature is enabled,
+    /// this handler is called instead of the default behavior (opening in browser).
+    ///
+    /// ```swift
+    /// MarkdownView(content)
+    ///     .markdownFeatures(.links)
+    ///     .onLinkTap { url in
+    ///         // Custom link handling
+    ///         print("User tapped: \(url)")
+    ///     }
+    /// ```
+    ///
+    /// - Parameter handler: A closure that receives the tapped URL.
+    /// - Returns: A view with the custom link handler set.
+    func onLinkTap(_ handler: @escaping (URL) -> Void) -> some View {
+        environment(\.markdownLinkHandler, handler)
+    }
+}
