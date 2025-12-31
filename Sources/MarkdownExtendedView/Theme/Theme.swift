@@ -8,7 +8,52 @@ import SwiftUI
 
 // MARK: - Theme
 
-/// A theme for customizing the appearance of rendered Markdown.
+/// A theme for customizing the appearance of rendered Markdown content.
+///
+/// `MarkdownTheme` provides comprehensive control over typography, colors, and spacing
+/// for all Markdown elements. You can use one of the built-in themes or create a custom
+/// theme by modifying properties.
+///
+/// ## Using Built-in Themes
+///
+/// ```swift
+/// MarkdownView(content)
+///     .markdownTheme(.gitHub)
+/// ```
+///
+/// ## Creating a Custom Theme
+///
+/// ```swift
+/// var theme = MarkdownTheme.default
+/// theme.linkColor = .purple
+/// theme.paragraphSpacing = 16
+///
+/// MarkdownView(content)
+///     .markdownTheme(theme)
+/// ```
+///
+/// ## Available Properties
+///
+/// ### Typography
+/// - ``bodyFont``: Main paragraph text
+/// - ``heading1Font`` through ``heading6Font``: Heading levels
+/// - ``codeFont``: Inline code spans
+/// - ``codeBlockFont``: Fenced code blocks
+///
+/// ### Colors
+/// - ``textColor``: Primary text color
+/// - ``secondaryTextColor``: De-emphasized text (e.g., image alt text)
+/// - ``linkColor``: Hyperlink color
+/// - ``codeBackgroundColor``: Background for code blocks
+/// - ``blockQuoteBorderColor``: Left border of block quotes
+/// - ``tableBorderColor``: Table cell borders
+/// - ``tableHeaderBackgroundColor``: Table header row background
+///
+/// ### Spacing
+/// - ``paragraphSpacing``: Vertical space between block elements
+/// - ``listItemSpacing``: Space between list items
+/// - ``indentation``: Indent for nested content
+/// - ``codeBlockPadding``: Internal padding of code blocks
 public struct MarkdownTheme: Sendable {
 
     // MARK: - Text Styles
@@ -125,9 +170,17 @@ public struct MarkdownTheme: Sendable {
 public extension MarkdownTheme {
 
     /// The default theme that adapts to system appearance.
+    ///
+    /// Uses system semantic fonts (`Font.body`, `Font.title`, etc.) and colors
+    /// (`Color.primary`, `Color.accentColor`) that automatically adapt to
+    /// light/dark mode and accessibility settings.
     static let `default` = MarkdownTheme()
 
-    /// A GitHub-style theme.
+    /// A GitHub-style theme with fixed font sizes.
+    ///
+    /// Mimics GitHub's Markdown rendering with specific pixel-based font sizes
+    /// and GitHub's signature blue link color. Best for content that should
+    /// match GitHub's visual style.
     static let gitHub = MarkdownTheme(
         bodyFont: .system(size: 16),
         heading1Font: .system(size: 32, weight: .bold),
@@ -146,7 +199,10 @@ public extension MarkdownTheme {
         codeBlockPadding: 16
     )
 
-    /// A compact theme for smaller displays.
+    /// A compact theme optimized for smaller displays or dense content.
+    ///
+    /// Uses smaller fonts and reduced spacing to fit more content in limited space.
+    /// Ideal for sidebars, tooltips, or mobile interfaces where space is at a premium.
     static let compact = MarkdownTheme(
         bodyFont: .callout,
         heading1Font: .title2.bold(),
@@ -171,6 +227,17 @@ private struct MarkdownThemeKey: EnvironmentKey {
 }
 
 public extension EnvironmentValues {
+    /// The current Markdown theme used by ``MarkdownView`` instances.
+    ///
+    /// Set this value using the ``SwiftUI/View/markdownTheme(_:)`` modifier:
+    ///
+    /// ```swift
+    /// MarkdownView(content)
+    ///     .markdownTheme(.gitHub)
+    /// ```
+    ///
+    /// The theme propagates through the view hierarchy, so you can set it
+    /// at a parent level to affect all nested Markdown views.
     var markdownTheme: MarkdownTheme {
         get { self[MarkdownThemeKey.self] }
         set { self[MarkdownThemeKey.self] = newValue }
