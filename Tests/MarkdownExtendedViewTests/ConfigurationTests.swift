@@ -81,4 +81,47 @@ final class ConfigurationTests: XCTestCase {
         let placeholder: AnyView? = nil
         XCTAssertNil(placeholder)
     }
+
+    // MARK: - View Modifier Tests
+
+    func testMarkdownFeaturesModifierExists() {
+        // Verify the markdownFeatures modifier can be called
+        let view = Text("Test")
+        let modifiedView = view.markdownFeatures(.links)
+        // If this compiles, the modifier exists
+        XCTAssertNotNil(modifiedView)
+    }
+
+    func testMarkdownFeaturesModifierWithMultipleFlags() {
+        let view = Text("Test")
+        let modifiedView = view.markdownFeatures([.links, .images])
+        XCTAssertNotNil(modifiedView)
+    }
+
+    func testOnLinkTapModifierExists() {
+        // Verify the onLinkTap modifier can be called
+        let view = Text("Test")
+        let modifiedView = view.onLinkTap { _ in }
+        XCTAssertNotNil(modifiedView)
+    }
+
+    func testModifiersCanBeChained() {
+        // Verify modifiers can be chained together
+        let view = Text("Test")
+        let modifiedView = view
+            .markdownFeatures([.links, .images])
+            .onLinkTap { url in
+                print("Tapped: \(url)")
+            }
+        XCTAssertNotNil(modifiedView)
+    }
+
+    func testMarkdownFeaturesWithTheme() {
+        // Verify features can be combined with theme
+        let view = Text("Test")
+        let modifiedView = view
+            .markdownTheme(.gitHub)
+            .markdownFeatures(.links)
+        XCTAssertNotNil(modifiedView)
+    }
 }
