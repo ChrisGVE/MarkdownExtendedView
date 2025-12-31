@@ -5,6 +5,7 @@
 // Licensed under MIT License
 
 import Foundation
+import SwiftUI
 
 /// Feature flags for enabling opt-in Markdown capabilities.
 ///
@@ -74,4 +75,51 @@ public struct MarkdownFeatures: OptionSet, Sendable {
     ///
     /// Enables links, images, and mermaid diagram rendering.
     public static let all: MarkdownFeatures = [.links, .images, .mermaid]
+}
+
+// MARK: - Environment Keys
+
+/// Environment key for enabled Markdown features.
+private struct MarkdownFeaturesKey: EnvironmentKey {
+    static let defaultValue: MarkdownFeatures = .none
+}
+
+/// Environment key for custom link tap handler.
+private struct MarkdownLinkHandlerKey: EnvironmentKey {
+    static let defaultValue: ((URL) -> Void)? = nil
+}
+
+public extension EnvironmentValues {
+
+    /// The enabled Markdown features for ``MarkdownView`` instances.
+    ///
+    /// Set this value using the ``SwiftUI/View/markdownFeatures(_:)`` modifier:
+    ///
+    /// ```swift
+    /// MarkdownView(content)
+    ///     .markdownFeatures([.links, .images])
+    /// ```
+    ///
+    /// The features propagate through the view hierarchy.
+    var markdownFeatures: MarkdownFeatures {
+        get { self[MarkdownFeaturesKey.self] }
+        set { self[MarkdownFeaturesKey.self] = newValue }
+    }
+
+    /// A custom handler for link taps in ``MarkdownView``.
+    ///
+    /// When set, this handler is called instead of the default link behavior.
+    /// Use the ``SwiftUI/View/onLinkTap(_:)`` modifier to set this:
+    ///
+    /// ```swift
+    /// MarkdownView(content)
+    ///     .markdownFeatures(.links)
+    ///     .onLinkTap { url in
+    ///         // Custom handling
+    ///     }
+    /// ```
+    var markdownLinkHandler: ((URL) -> Void)? {
+        get { self[MarkdownLinkHandlerKey.self] }
+        set { self[MarkdownLinkHandlerKey.self] = newValue }
+    }
 }
