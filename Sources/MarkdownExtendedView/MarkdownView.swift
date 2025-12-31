@@ -92,10 +92,32 @@ public struct MarkdownView: View {
 // MARK: - View Modifiers
 
 public extension View {
-    /// Applies a Markdown theme to the view hierarchy.
+    /// Applies a Markdown theme to all ``MarkdownView`` instances in the view hierarchy.
     ///
-    /// - Parameter theme: The theme to apply.
-    /// - Returns: A view with the theme applied.
+    /// Use this modifier to customize the appearance of Markdown content. The theme
+    /// propagates to all nested views, so you can set it at a parent level.
+    ///
+    /// ```swift
+    /// // Apply a built-in theme
+    /// MarkdownView(content)
+    ///     .markdownTheme(.gitHub)
+    ///
+    /// // Apply a custom theme
+    /// var custom = MarkdownTheme.default
+    /// custom.linkColor = .purple
+    /// MarkdownView(content)
+    ///     .markdownTheme(custom)
+    ///
+    /// // Apply to a container to theme all nested MarkdownViews
+    /// VStack {
+    ///     MarkdownView(intro)
+    ///     MarkdownView(details)
+    /// }
+    /// .markdownTheme(.compact)
+    /// ```
+    ///
+    /// - Parameter theme: The ``MarkdownTheme`` to apply.
+    /// - Returns: A view with the theme applied to the environment.
     func markdownTheme(_ theme: MarkdownTheme) -> some View {
         environment(\.markdownTheme, theme)
     }
@@ -116,7 +138,7 @@ struct MarkdownView_Previews: PreviewProvider {
 
                 - GitHub Flavored Markdown
                 - LaTeX equations: $E = mc^2$
-                - Code blocks with syntax highlighting
+                - Fenced code blocks
                 - Tables and lists
 
                 ## Math Example
