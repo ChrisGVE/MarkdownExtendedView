@@ -129,7 +129,11 @@ struct MarkdownRenderer: View {
     private func renderUnorderedList(_ list: UnorderedList) -> some View {
         VStack(alignment: .leading, spacing: theme.listItemSpacing) {
             ForEach(Array(list.listItems.enumerated()), id: \.offset) { _, item in
-                renderListItem(item, bullet: "•")
+                if item.checkbox != nil {
+                    renderTaskListItem(item)
+                } else {
+                    renderListItem(item, bullet: "•")
+                }
             }
         }
     }
@@ -140,6 +144,22 @@ struct MarkdownRenderer: View {
             Text(bullet)
                 .font(theme.bodyFont)
                 .foregroundColor(theme.textColor)
+                .frame(width: 20, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: theme.listItemSpacing) {
+                ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in
+                    renderBlock(child)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderTaskListItem(_ item: ListItem) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.checkbox?.isChecked == true ? "checkmark.square.fill" : "square")
+                .font(theme.bodyFont)
+                .foregroundColor(item.checkbox?.isChecked == true ? theme.linkColor : theme.secondaryTextColor)
                 .frame(width: 20, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: theme.listItemSpacing) {
