@@ -7,3 +7,41 @@ DerivedData/
 .swiftpm/xcode/package.xcworkspace/contents.xcworkspacedata
 .netrc
 Package.resolved
+
+# Logs
+logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+dev-debug.log
+# Dependency directories
+node_modules/
+# Environment variables
+.env
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+# OS specific
+
+# Task Master
+.taskmaster/
+
+# Claude Code
+CLAUDE.md
+CLAUDE.local.md
+.claude/
+
+# Editor/IDE specific
+.cursor/
+.serena/
+.specstory/
+
+# Environment
+.env
+.env.example
