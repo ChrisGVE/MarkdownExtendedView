@@ -14,12 +14,20 @@ struct MarkdownRenderer: View {
     let theme: MarkdownTheme
     let baseURL: URL?
 
+    @Environment(\.markdownFeatures) private var features
+    @Environment(\.markdownLinkHandler) private var linkHandler
+
     var body: some View {
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
             ForEach(Array(document.children.enumerated()), id: \.offset) { _, child in
                 renderBlock(child)
             }
         }
+    }
+
+    /// Whether clickable links are enabled.
+    private var linksEnabled: Bool {
+        features.contains(.links)
     }
 
     // MARK: - Block Rendering
@@ -231,16 +239,107 @@ struct MarkdownRenderer: View {
         inlineText
     }
 
-    /// Builds a Text view from inline children, handling LaTeX segments.
+    /// Builds a Text view from inline children, handling LaTeX segments and links.
     private func buildInlineText(from parent: any Markup) -> some View {
         let plainText = extractPlainText(from: parent)
 
         // Check if text contains LaTeX
         if LaTeXPreprocessor.containsLaTeX(plainText) {
             return AnyView(renderTextWithLaTeX(parent))
-        } else {
-            return AnyView(buildAttributedText(from: parent))
         }
+
+        // Check if links are enabled and content contains links
+        if linksEnabled && containsLinks(parent) {
+            return AnyView(renderTextWithLinks(parent))
+        }
+
+        return AnyView(buildAttributedText(from: parent))
+    }
+
+    /// Checks if the markup contains any Link nodes.
+    private func containsLinks(_ parent: any Markup) -> Bool {
+        for child in parent.children {
+            if child is Markdown.Link { return true }
+            if containsLinks(child) { return true }
+        }
+        return false
+    }
+
+    /// Renders text with clickable links using flow layout.
+    @ViewBuilder
+    private func renderTextWithLinks(_ parent: any Markup) -> some View {
+        FlowLayout(spacing: 0) {
+            ForEach(Array(parent.children.enumerated()), id: \.offset) { _, child in
+                renderInlineElementAsView(child)
+            }
+        }
+    }
+
+    /// Renders an inline element as a View (for use in flow layout with links).
+    @ViewBuilder
+    private func renderInlineElementAsView(_ element: any Markup) -> some View {
+        switch element {
+        case let text as Markdown.Text:
+            SwiftUI.Text(text.string)
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+
+        case let strong as Strong:
+            renderStrongAsView(strong)
+
+        case let emphasis as Emphasis:
+            renderEmphasisAsView(emphasis)
+
+        case let link as Markdown.Link:
+            TappableLinkView(
+                link: link,
+                theme: theme,
+                linkHandler: linkHandler,
+                baseURL: baseURL
+            )
+
+        case let code as InlineCode:
+            SwiftUI.Text(code.code)
+                .font(theme.codeFont)
+                .foregroundColor(theme.textColor)
+
+        case _ as SoftBreak:
+            SwiftUI.Text(" ")
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+
+        case _ as LineBreak:
+            SwiftUI.Text("\n")
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+
+        default:
+            if let plainText = element as? any PlainTextConvertibleMarkup {
+                SwiftUI.Text(plainText.plainText)
+                    .font(theme.bodyFont)
+                    .foregroundColor(theme.textColor)
+            }
+        }
+    }
+
+    /// Helper for rendering Strong in flow layout (simplified to avoid type inference issues).
+    @ViewBuilder
+    private func renderStrongAsView(_ strong: Strong) -> some View {
+        // Simplified: render plain text with bold styling
+        SwiftUI.Text(extractPlainText(from: strong))
+            .bold()
+            .font(theme.bodyFont)
+            .foregroundColor(theme.textColor)
+    }
+
+    /// Helper for rendering Emphasis in flow layout (simplified to avoid type inference issues).
+    @ViewBuilder
+    private func renderEmphasisAsView(_ emphasis: Emphasis) -> some View {
+        // Simplified: render plain text with italic styling
+        SwiftUI.Text(extractPlainText(from: emphasis))
+            .italic()
+            .font(theme.bodyFont)
+            .foregroundColor(theme.textColor)
     }
 
     /// Renders text that may contain inline LaTeX.
