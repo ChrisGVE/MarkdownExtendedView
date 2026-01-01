@@ -253,7 +253,17 @@ struct MarkdownRenderer: View {
             return AnyView(renderTextWithLinks(parent))
         }
 
+        // Check if images are enabled and content contains images
+        if imagesEnabled && containsImages(parent) {
+            return AnyView(renderTextWithImages(parent))
+        }
+
         return AnyView(buildAttributedText(from: parent))
+    }
+
+    /// Whether image loading is enabled.
+    private var imagesEnabled: Bool {
+        features.contains(.images)
     }
 
     /// Checks if the markup contains any Link nodes.
@@ -263,6 +273,25 @@ struct MarkdownRenderer: View {
             if containsLinks(child) { return true }
         }
         return false
+    }
+
+    /// Checks if the markup contains any Image nodes.
+    private func containsImages(_ parent: any Markup) -> Bool {
+        for child in parent.children {
+            if child is Markdown.Image { return true }
+            if containsImages(child) { return true }
+        }
+        return false
+    }
+
+    /// Renders text with images using flow layout.
+    @ViewBuilder
+    private func renderTextWithImages(_ parent: any Markup) -> some View {
+        FlowLayout(spacing: 0) {
+            ForEach(Array(parent.children.enumerated()), id: \.offset) { _, child in
+                renderInlineElementAsView(child)
+            }
+        }
     }
 
     /// Renders text with clickable links using flow layout.
@@ -312,6 +341,13 @@ struct MarkdownRenderer: View {
             SwiftUI.Text("\n")
                 .font(theme.bodyFont)
                 .foregroundColor(theme.textColor)
+
+        case let image as Markdown.Image:
+            MarkdownImageView(
+                image: image,
+                theme: theme,
+                baseURL: baseURL
+            )
 
         default:
             if let plainText = element as? any PlainTextConvertibleMarkup {
