@@ -35,6 +35,11 @@ struct MarkdownRenderer: View {
         features.contains(.syntaxHighlighting)
     }
 
+    /// Whether Mermaid diagram rendering is enabled.
+    private var mermaidEnabled: Bool {
+        features.contains(.mermaid)
+    }
+
     // MARK: - Block Rendering
 
     private func renderBlock(_ markup: any Markup) -> AnyView {
@@ -97,6 +102,24 @@ struct MarkdownRenderer: View {
 
     @ViewBuilder
     private func renderCodeBlock(_ codeBlock: CodeBlock) -> some View {
+        if codeBlock.language == "mermaid" {
+            renderMermaidBlock(codeBlock)
+        } else {
+            renderRegularCodeBlock(codeBlock)
+        }
+    }
+
+    @ViewBuilder
+    private func renderMermaidBlock(_ codeBlock: CodeBlock) -> some View {
+        if mermaidEnabled {
+            MermaidView(code: codeBlock.code, theme: theme)
+        } else {
+            MermaidPlaceholderView(code: codeBlock.code, theme: theme)
+        }
+    }
+
+    @ViewBuilder
+    private func renderRegularCodeBlock(_ codeBlock: CodeBlock) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             if syntaxHighlightingEnabled && codeBlock.language != nil {
                 HighlightedCodeView(
