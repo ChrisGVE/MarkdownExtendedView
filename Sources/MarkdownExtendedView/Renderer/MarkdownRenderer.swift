@@ -30,6 +30,11 @@ struct MarkdownRenderer: View {
         features.contains(.links)
     }
 
+    /// Whether syntax highlighting is enabled.
+    private var syntaxHighlightingEnabled: Bool {
+        features.contains(.syntaxHighlighting)
+    }
+
     // MARK: - Block Rendering
 
     private func renderBlock(_ markup: any Markup) -> AnyView {
@@ -93,9 +98,17 @@ struct MarkdownRenderer: View {
     @ViewBuilder
     private func renderCodeBlock(_ codeBlock: CodeBlock) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            Text(codeBlock.code.trimmingCharacters(in: .newlines))
-                .font(theme.codeBlockFont)
-                .foregroundColor(theme.textColor)
+            if syntaxHighlightingEnabled && codeBlock.language != nil {
+                HighlightedCodeView(
+                    code: codeBlock.code,
+                    language: codeBlock.language,
+                    theme: theme
+                )
+            } else {
+                Text(codeBlock.code.trimmingCharacters(in: .newlines))
+                    .font(theme.codeBlockFont)
+                    .foregroundColor(theme.textColor)
+            }
         }
         .padding(theme.codeBlockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -64,6 +64,13 @@ public struct MarkdownFeatures: OptionSet, Sendable {
     /// using a WKWebView. This requires loading the Mermaid.js library.
     public static let mermaid = MarkdownFeatures(rawValue: 1 << 2)
 
+    /// Enable syntax highlighting for code blocks.
+    ///
+    /// When enabled, code blocks with language specifiers (e.g., ```swift)
+    /// are rendered with syntax highlighting for keywords, strings, comments,
+    /// and other language constructs.
+    public static let syntaxHighlighting = MarkdownFeatures(rawValue: 1 << 3)
+
     // MARK: - Convenience
 
     /// No features enabled (default).
@@ -73,8 +80,8 @@ public struct MarkdownFeatures: OptionSet, Sendable {
 
     /// All features enabled.
     ///
-    /// Enables links, images, and mermaid diagram rendering.
-    public static let all: MarkdownFeatures = [.links, .images, .mermaid]
+    /// Enables links, images, mermaid diagram rendering, and syntax highlighting.
+    public static let all: MarkdownFeatures = [.links, .images, .mermaid, .syntaxHighlighting]
 }
 
 // MARK: - Environment Keys
