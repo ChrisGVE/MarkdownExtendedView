@@ -14,12 +14,30 @@ struct MarkdownRenderer: View {
     let theme: MarkdownTheme
     let baseURL: URL?
 
+    @Environment(\.markdownFeatures) private var features
+    @Environment(\.markdownLinkHandler) private var linkHandler
+
     var body: some View {
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
             ForEach(Array(document.children.enumerated()), id: \.offset) { _, child in
                 renderBlock(child)
             }
         }
+    }
+
+    /// Whether clickable links are enabled.
+    private var linksEnabled: Bool {
+        features.contains(.links)
+    }
+
+    /// Whether syntax highlighting is enabled.
+    private var syntaxHighlightingEnabled: Bool {
+        features.contains(.syntaxHighlighting)
+    }
+
+    /// Whether Mermaid diagram rendering is enabled.
+    private var mermaidEnabled: Bool {
+        features.contains(.mermaid)
     }
 
     // MARK: - Block Rendering
@@ -84,10 +102,36 @@ struct MarkdownRenderer: View {
 
     @ViewBuilder
     private func renderCodeBlock(_ codeBlock: CodeBlock) -> some View {
+        if codeBlock.language == "mermaid" {
+            renderMermaidBlock(codeBlock)
+        } else {
+            renderRegularCodeBlock(codeBlock)
+        }
+    }
+
+    @ViewBuilder
+    private func renderMermaidBlock(_ codeBlock: CodeBlock) -> some View {
+        if mermaidEnabled {
+            MermaidView(code: codeBlock.code, theme: theme)
+        } else {
+            MermaidPlaceholderView(code: codeBlock.code, theme: theme)
+        }
+    }
+
+    @ViewBuilder
+    private func renderRegularCodeBlock(_ codeBlock: CodeBlock) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            Text(codeBlock.code.trimmingCharacters(in: .newlines))
-                .font(theme.codeBlockFont)
-                .foregroundColor(theme.textColor)
+            if syntaxHighlightingEnabled && codeBlock.language != nil {
+                HighlightedCodeView(
+                    code: codeBlock.code,
+                    language: codeBlock.language,
+                    theme: theme
+                )
+            } else {
+                Text(codeBlock.code.trimmingCharacters(in: .newlines))
+                    .font(theme.codeBlockFont)
+                    .foregroundColor(theme.textColor)
+            }
         }
         .padding(theme.codeBlockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -116,26 +160,40 @@ struct MarkdownRenderer: View {
 
     // MARK: - Lists
 
+    /// Bullet styles for different nesting levels in unordered lists.
+    private static let bulletStyles = ["•", "◦", "▪", "▸"]
+
+    /// Returns the bullet character for a given nesting depth.
+    private func bulletForDepth(_ depth: Int) -> String {
+        Self.bulletStyles[depth % Self.bulletStyles.count]
+    }
+
     @ViewBuilder
-    private func renderOrderedList(_ list: OrderedList) -> some View {
+    private func renderOrderedList(_ list: OrderedList, depth: Int = 0) -> some View {
         VStack(alignment: .leading, spacing: theme.listItemSpacing) {
             ForEach(Array(list.listItems.enumerated()), id: \.offset) { index, item in
-                renderListItem(item, bullet: "\(index + Int(list.startIndex)).")
+                renderListItem(item, bullet: "\(index + Int(list.startIndex)).", depth: depth)
             }
         }
+        .padding(.leading, depth > 0 ? theme.indentation : 0)
     }
 
     @ViewBuilder
-    private func renderUnorderedList(_ list: UnorderedList) -> some View {
+    private func renderUnorderedList(_ list: UnorderedList, depth: Int = 0) -> some View {
         VStack(alignment: .leading, spacing: theme.listItemSpacing) {
             ForEach(Array(list.listItems.enumerated()), id: \.offset) { _, item in
-                renderListItem(item, bullet: "•")
+                if item.checkbox != nil {
+                    renderTaskListItem(item, depth: depth)
+                } else {
+                    renderListItem(item, bullet: bulletForDepth(depth), depth: depth)
+                }
             }
         }
+        .padding(.leading, depth > 0 ? theme.indentation : 0)
     }
 
     @ViewBuilder
-    private func renderListItem(_ item: ListItem, bullet: String) -> some View {
+    private func renderListItem(_ item: ListItem, bullet: String, depth: Int) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Text(bullet)
                 .font(theme.bodyFont)
@@ -144,9 +202,36 @@ struct MarkdownRenderer: View {
 
             VStack(alignment: .leading, spacing: theme.listItemSpacing) {
                 ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in
-                    renderBlock(child)
+                    renderListChildBlock(child, depth: depth)
                 }
             }
+        }
+    }
+
+    @ViewBuilder
+    private func renderTaskListItem(_ item: ListItem, depth: Int) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: item.checkbox?.isChecked == true ? "checkmark.square.fill" : "square")
+                .font(theme.bodyFont)
+                .foregroundColor(item.checkbox?.isChecked == true ? theme.linkColor : theme.secondaryTextColor)
+                .frame(width: 20, alignment: .trailing)
+
+            VStack(alignment: .leading, spacing: theme.listItemSpacing) {
+                ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in
+                    renderListChildBlock(child, depth: depth)
+                }
+            }
+        }
+    }
+
+    /// Renders a child block within a list item, handling nested lists specially.
+    private func renderListChildBlock(_ markup: any Markup, depth: Int) -> AnyView {
+        if let nestedOrdered = markup as? OrderedList {
+            return AnyView(renderOrderedList(nestedOrdered, depth: depth + 1))
+        } else if let nestedUnordered = markup as? UnorderedList {
+            return AnyView(renderUnorderedList(nestedUnordered, depth: depth + 1))
+        } else {
+            return renderBlock(markup)
         }
     }
 
@@ -211,16 +296,143 @@ struct MarkdownRenderer: View {
         inlineText
     }
 
-    /// Builds a Text view from inline children, handling LaTeX segments.
+    /// Builds a Text view from inline children, handling LaTeX segments and links.
     private func buildInlineText(from parent: any Markup) -> some View {
         let plainText = extractPlainText(from: parent)
 
         // Check if text contains LaTeX
         if LaTeXPreprocessor.containsLaTeX(plainText) {
             return AnyView(renderTextWithLaTeX(parent))
-        } else {
-            return AnyView(buildAttributedText(from: parent))
         }
+
+        // Check if links are enabled and content contains links
+        if linksEnabled && containsLinks(parent) {
+            return AnyView(renderTextWithLinks(parent))
+        }
+
+        // Check if images are enabled and content contains images
+        if imagesEnabled && containsImages(parent) {
+            return AnyView(renderTextWithImages(parent))
+        }
+
+        return AnyView(buildAttributedText(from: parent))
+    }
+
+    /// Whether image loading is enabled.
+    private var imagesEnabled: Bool {
+        features.contains(.images)
+    }
+
+    /// Checks if the markup contains any Link nodes.
+    private func containsLinks(_ parent: any Markup) -> Bool {
+        for child in parent.children {
+            if child is Markdown.Link { return true }
+            if containsLinks(child) { return true }
+        }
+        return false
+    }
+
+    /// Checks if the markup contains any Image nodes.
+    private func containsImages(_ parent: any Markup) -> Bool {
+        for child in parent.children {
+            if child is Markdown.Image { return true }
+            if containsImages(child) { return true }
+        }
+        return false
+    }
+
+    /// Renders text with images using flow layout.
+    @ViewBuilder
+    private func renderTextWithImages(_ parent: any Markup) -> some View {
+        FlowLayout(spacing: 0) {
+            ForEach(Array(parent.children.enumerated()), id: \.offset) { _, child in
+                renderInlineElementAsView(child)
+            }
+        }
+    }
+
+    /// Renders text with clickable links using flow layout.
+    @ViewBuilder
+    private func renderTextWithLinks(_ parent: any Markup) -> some View {
+        FlowLayout(spacing: 0) {
+            ForEach(Array(parent.children.enumerated()), id: \.offset) { _, child in
+                renderInlineElementAsView(child)
+            }
+        }
+    }
+
+    /// Renders an inline element as a View (for use in flow layout with links).
+    @ViewBuilder
+    private func renderInlineElementAsView(_ element: any Markup) -> some View {
+        switch element {
+        case let text as Markdown.Text:
+            SwiftUI.Text(text.string)
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+
+        case let strong as Strong:
+            renderStrongAsView(strong)
+
+        case let emphasis as Emphasis:
+            renderEmphasisAsView(emphasis)
+
+        case let link as Markdown.Link:
+            TappableLinkView(
+                link: link,
+                theme: theme,
+                linkHandler: linkHandler,
+                baseURL: baseURL
+            )
+
+        case let code as InlineCode:
+            SwiftUI.Text(code.code)
+                .font(theme.codeFont)
+                .foregroundColor(theme.textColor)
+
+        case _ as SoftBreak:
+            SwiftUI.Text(" ")
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+
+        case _ as LineBreak:
+            SwiftUI.Text("\n")
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+
+        case let image as Markdown.Image:
+            MarkdownImageView(
+                image: image,
+                theme: theme,
+                baseURL: baseURL
+            )
+
+        default:
+            if let plainText = element as? any PlainTextConvertibleMarkup {
+                SwiftUI.Text(plainText.plainText)
+                    .font(theme.bodyFont)
+                    .foregroundColor(theme.textColor)
+            }
+        }
+    }
+
+    /// Helper for rendering Strong in flow layout (simplified to avoid type inference issues).
+    @ViewBuilder
+    private func renderStrongAsView(_ strong: Strong) -> some View {
+        // Simplified: render plain text with bold styling
+        SwiftUI.Text(extractPlainText(from: strong))
+            .bold()
+            .font(theme.bodyFont)
+            .foregroundColor(theme.textColor)
+    }
+
+    /// Helper for rendering Emphasis in flow layout (simplified to avoid type inference issues).
+    @ViewBuilder
+    private func renderEmphasisAsView(_ emphasis: Emphasis) -> some View {
+        // Simplified: render plain text with italic styling
+        SwiftUI.Text(extractPlainText(from: emphasis))
+            .italic()
+            .font(theme.bodyFont)
+            .foregroundColor(theme.textColor)
     }
 
     /// Renders text that may contain inline LaTeX.

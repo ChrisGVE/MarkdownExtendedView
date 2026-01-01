@@ -6,6 +6,69 @@
 
 import SwiftUI
 
+// MARK: - Syntax Colors
+
+/// Colors for syntax highlighting in code blocks.
+///
+/// These colors are used when the ``MarkdownFeatures/syntaxHighlighting`` feature
+/// is enabled to colorize different token types in code blocks.
+public struct SyntaxColors: Sendable {
+
+    /// Color for keywords (e.g., `let`, `func`, `class`, `if`, `return`).
+    public var keyword: Color
+
+    /// Color for string literals (e.g., `"Hello"`).
+    public var string: Color
+
+    /// Color for comments (e.g., `// comment`).
+    public var comment: Color
+
+    /// Color for numbers (e.g., `42`, `3.14`).
+    public var number: Color
+
+    /// Color for type names (e.g., `String`, `Int`, `MyClass`).
+    public var type: Color
+
+    /// Color for function/method names.
+    public var function: Color
+
+    /// Color for plain text (default code color).
+    public var plain: Color
+
+    /// Creates a syntax color palette.
+    public init(
+        keyword: Color = Color(red: 0.61, green: 0.13, blue: 0.58),      // Purple
+        string: Color = Color(red: 0.77, green: 0.1, blue: 0.09),         // Red
+        comment: Color = Color(red: 0.42, green: 0.48, blue: 0.51),       // Gray
+        number: Color = Color(red: 0.11, green: 0.44, blue: 0.72),        // Blue
+        type: Color = Color(red: 0.11, green: 0.44, blue: 0.72),          // Blue
+        function: Color = Color(red: 0.16, green: 0.5, blue: 0.73),       // Teal
+        plain: Color = .primary
+    ) {
+        self.keyword = keyword
+        self.string = string
+        self.comment = comment
+        self.number = number
+        self.type = type
+        self.function = function
+        self.plain = plain
+    }
+
+    /// Default syntax colors matching Xcode's default theme.
+    public static let `default` = SyntaxColors()
+
+    /// GitHub-style syntax colors.
+    public static let gitHub = SyntaxColors(
+        keyword: Color(red: 0.84, green: 0.16, blue: 0.5),                // #d73a49
+        string: Color(red: 0.0, green: 0.37, blue: 0.73),                 // #005cc5
+        comment: Color(red: 0.42, green: 0.48, blue: 0.51),               // #6a737d
+        number: Color(red: 0.0, green: 0.37, blue: 0.73),                 // #005cc5
+        type: Color(red: 0.42, green: 0.22, blue: 0.6),                   // #6f42c1
+        function: Color(red: 0.42, green: 0.22, blue: 0.6),               // #6f42c1
+        plain: Color(red: 0.14, green: 0.16, blue: 0.18)                  // #24292e
+    )
+}
+
 // MARK: - Theme
 
 /// A theme for customizing the appearance of rendered Markdown content.
@@ -94,6 +157,9 @@ public struct MarkdownTheme: Sendable {
     /// Table header background color.
     public var tableHeaderBackgroundColor: Color
 
+    /// Syntax highlighting colors for code blocks.
+    public var syntaxColors: SyntaxColors
+
     // MARK: - Spacing
 
     /// Spacing between paragraphs.
@@ -124,6 +190,7 @@ public struct MarkdownTheme: Sendable {
         blockQuoteBorderColor: Color = Color(white: 0.75),
         tableBorderColor: Color = Color(white: 0.80),
         tableHeaderBackgroundColor: Color = Color(white: 0.90),
+        syntaxColors: SyntaxColors = .default,
         paragraphSpacing: CGFloat = 12,
         listItemSpacing: CGFloat = 4,
         indentation: CGFloat = 20,
@@ -145,6 +212,7 @@ public struct MarkdownTheme: Sendable {
         self.blockQuoteBorderColor = blockQuoteBorderColor
         self.tableBorderColor = tableBorderColor
         self.tableHeaderBackgroundColor = tableHeaderBackgroundColor
+        self.syntaxColors = syntaxColors
         self.paragraphSpacing = paragraphSpacing
         self.listItemSpacing = listItemSpacing
         self.indentation = indentation
@@ -193,6 +261,7 @@ public extension MarkdownTheme {
         codeBlockFont: .system(size: 13, design: .monospaced),
         linkColor: Color(red: 0.0, green: 0.4, blue: 0.8),
         codeBackgroundColor: Color(red: 0.96, green: 0.97, blue: 0.98),
+        syntaxColors: .gitHub,
         paragraphSpacing: 16,
         listItemSpacing: 4,
         indentation: 24,

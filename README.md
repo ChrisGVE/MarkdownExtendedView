@@ -15,9 +15,15 @@ A native SwiftUI Markdown renderer with LaTeX equation support.
 - **LaTeX equations** rendered natively via SwiftMath
   - Inline math: `$...$`
   - Display math: `$$...$$`
+- **Task lists** with checkbox rendering (`- [ ]` and `- [x]`)
+- **Clickable links** with in-app browser (iOS) or system browser (macOS)
+- **Remote image loading** using AsyncImage
+- **Syntax highlighting** for 13+ languages
+- **Mermaid diagrams** via embedded WKWebView
 - **Theming system** with built-in themes (default, gitHub, compact)
+- **Privacy-first** - network features disabled by default
 - **Cross-platform** support for iOS 16+ and macOS 13+
-- **Pure SwiftUI** - no WebViews or JavaScript
+- **Pure SwiftUI** - minimal WebView usage (only for Mermaid)
 
 ## Supported Markdown Elements
 
@@ -28,13 +34,16 @@ A native SwiftUI Markdown renderer with LaTeX equation support.
 | Italic | `*text*` or `_text_` | Supported |
 | Strikethrough | `~~text~~` | Supported |
 | Inline code | `` `code` `` | Supported |
-| Code blocks | ` ``` ` fenced blocks | Supported |
+| Code blocks | ` ``` ` fenced blocks | Supported (with syntax highlighting) |
 | Block quotes | `> quote` | Supported |
-| Ordered lists | `1. item` | Supported |
-| Unordered lists | `- item` or `* item` | Supported |
+| Ordered lists | `1. item` | Supported (with nesting) |
+| Unordered lists | `- item` or `* item` | Supported (with nesting) |
+| Task lists | `- [ ]` and `- [x]` | Supported |
 | Tables | GFM pipe tables | Supported |
-| Links | `[text](url)` | Styled (not clickable) |
-| Images | `![alt](url)` | Alt text only |
+| Links | `[text](url)` | Opt-in (.links feature) |
+| Images | `![alt](url)` | Opt-in (.images feature) |
+| Mermaid diagrams | ` ```mermaid ` | Opt-in (.mermaid feature) |
+| Footnotes | `[^1]` and `[^1]: text` | Opt-in (.footnotes feature) |
 | Thematic breaks | `---` or `***` | Supported |
 | Inline LaTeX | `$E=mc^2$` | Supported |
 | Display LaTeX | `$$...$$` | Supported |
@@ -129,6 +138,111 @@ MarkdownView(content)
     .markdownTheme(customTheme)
 ```
 
+## Feature Flags
+
+For privacy, network-dependent features are disabled by default. Enable them using the `.markdownFeatures()` modifier:
+
+```swift
+// Enable clickable links
+MarkdownView(content)
+    .markdownFeatures(.links)
+
+// Enable multiple features
+MarkdownView(content)
+    .markdownFeatures([.links, .images, .syntaxHighlighting])
+
+// Enable all features
+MarkdownView(content)
+    .markdownFeatures(.all)
+```
+
+### Available Features
+
+| Feature | Description | Network Required |
+|---------|-------------|------------------|
+| `.links` | Makes links tappable. iOS opens in SFSafariViewController, macOS opens in default browser | Optional |
+| `.images` | Loads and displays remote images using AsyncImage | Yes |
+| `.syntaxHighlighting` | Colorizes code blocks based on language | No |
+| `.mermaid` | Renders Mermaid diagrams using WKWebView | Yes (CDN) |
+| `.footnotes` | Processes footnote syntax (`[^1]`) and renders as superscripts | No |
+
+### Custom Link Handler
+
+Override the default link behavior:
+
+```swift
+MarkdownView(content)
+    .markdownFeatures(.links)
+    .onLinkTap { url in
+        // Custom handling
+        print("Tapped: \(url)")
+    }
+```
+
+### Syntax Highlighting
+
+When `.syntaxHighlighting` is enabled, code blocks with language specifiers are colorized:
+
+```swift
+MarkdownView("""
+    ```swift
+    let greeting = "Hello, World!"
+    print(greeting)
+    ```
+""")
+.markdownFeatures(.syntaxHighlighting)
+```
+
+Supported languages: Swift, Python, JavaScript, TypeScript, Java, C, C++, Go, Rust, Ruby, Kotlin, PHP, C#.
+
+Customize syntax colors via the theme:
+
+```swift
+var theme = MarkdownTheme.default
+theme.syntaxColors.keyword = .purple
+theme.syntaxColors.string = .red
+theme.syntaxColors.comment = .gray
+```
+
+### Mermaid Diagrams
+
+When `.mermaid` is enabled, Mermaid code blocks are rendered as diagrams:
+
+```swift
+MarkdownView("""
+    ```mermaid
+    graph TD
+        A[Start] --> B{Decision}
+        B -->|Yes| C[OK]
+        B -->|No| D[Cancel]
+    ```
+""")
+.markdownFeatures(.mermaid)
+```
+
+Supports all Mermaid diagram types: flowcharts, sequence diagrams, class diagrams, state diagrams, Gantt charts, pie charts, and more.
+
+### Footnotes
+
+When `.footnotes` is enabled, footnote syntax is processed and rendered:
+
+```swift
+MarkdownView("""
+    This statement needs a citation[^1].
+
+    Another point with a named reference[^note].
+
+    [^1]: Source: Academic Paper, 2024.
+    [^note]: See the documentation for details.
+""")
+.markdownFeatures(.footnotes)
+```
+
+Footnotes are:
+- Rendered as superscript numbers (¹, ², ³...)
+- Collected and displayed in a footnotes section at the end
+- Numbered in order of first appearance in the text
+
 ## LaTeX Support
 
 MarkdownExtendedView uses [SwiftMath](https://github.com/mgriebling/SwiftMath) for native LaTeX rendering.
@@ -173,13 +287,9 @@ Current limitations that may be addressed in future versions:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Clickable links | Not supported | Links are styled but not tappable |
-| Image loading | Not supported | Shows alt text; no remote/local image loading |
-| Syntax highlighting | Not supported | Code blocks render in monospace without coloring |
-| Task lists | Not supported | `- [ ]` checkboxes not rendered |
-| Footnotes | Not supported | `[^1]` syntax not processed |
-| Nested lists | Partial | Deep nesting may have alignment issues |
-| Autolinks | Not verified | Raw URLs may not auto-link |
+| Reference-style links | Not verified | `[text][ref]` syntax may not work |
+| HTML blocks | Partial | Raw HTML is not rendered |
+| Definition lists | Not supported | Not part of GFM |
 
 ## Requirements
 
