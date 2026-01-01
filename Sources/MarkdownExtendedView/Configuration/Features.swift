@@ -71,6 +71,13 @@ public struct MarkdownFeatures: OptionSet, Sendable {
     /// and other language constructs.
     public static let syntaxHighlighting = MarkdownFeatures(rawValue: 1 << 3)
 
+    /// Enable footnote processing.
+    ///
+    /// When enabled, footnote syntax (`[^1]` and `[^1]: definition`) is
+    /// processed and rendered as numbered superscripts with a footnotes
+    /// section at the end of the document.
+    public static let footnotes = MarkdownFeatures(rawValue: 1 << 4)
+
     // MARK: - Convenience
 
     /// No features enabled (default).
@@ -80,8 +87,8 @@ public struct MarkdownFeatures: OptionSet, Sendable {
 
     /// All features enabled.
     ///
-    /// Enables links, images, mermaid diagram rendering, and syntax highlighting.
-    public static let all: MarkdownFeatures = [.links, .images, .mermaid, .syntaxHighlighting]
+    /// Enables links, images, mermaid diagrams, syntax highlighting, and footnotes.
+    public static let all: MarkdownFeatures = [.links, .images, .mermaid, .syntaxHighlighting, .footnotes]
 }
 
 // MARK: - Environment Keys

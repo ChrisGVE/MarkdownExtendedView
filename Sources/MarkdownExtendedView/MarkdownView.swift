@@ -47,6 +47,7 @@ public struct MarkdownView: View {
 
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.markdownTheme) private var theme
+    @Environment(\.markdownFeatures) private var features
 
     // MARK: - Initialization
 
@@ -83,8 +84,17 @@ public struct MarkdownView: View {
     // MARK: - Parsing
 
     private func parseMarkdown(_ content: String) -> Document {
+        var processedContent = content
+
+        // Pre-process footnotes if enabled
+        if features.contains(.footnotes) {
+            let footnoteResult = FootnotePreprocessor().process(processedContent)
+            processedContent = footnoteResult.processedMarkdown
+        }
+
         // Pre-process content to handle LaTeX blocks before markdown parsing
-        let processedContent = LaTeXPreprocessor.process(content)
+        processedContent = LaTeXPreprocessor.process(processedContent)
+
         return Document(parsing: processedContent, options: [.parseBlockDirectives, .parseSymbolLinks])
     }
 }
