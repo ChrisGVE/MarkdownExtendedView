@@ -137,30 +137,40 @@ struct MarkdownRenderer: View {
 
     // MARK: - Lists
 
-    @ViewBuilder
-    private func renderOrderedList(_ list: OrderedList) -> some View {
-        VStack(alignment: .leading, spacing: theme.listItemSpacing) {
-            ForEach(Array(list.listItems.enumerated()), id: \.offset) { index, item in
-                renderListItem(item, bullet: "\(index + Int(list.startIndex)).")
-            }
-        }
+    /// Bullet styles for different nesting levels in unordered lists.
+    private static let bulletStyles = ["•", "◦", "▪", "▸"]
+
+    /// Returns the bullet character for a given nesting depth.
+    private func bulletForDepth(_ depth: Int) -> String {
+        Self.bulletStyles[depth % Self.bulletStyles.count]
     }
 
     @ViewBuilder
-    private func renderUnorderedList(_ list: UnorderedList) -> some View {
+    private func renderOrderedList(_ list: OrderedList, depth: Int = 0) -> some View {
+        VStack(alignment: .leading, spacing: theme.listItemSpacing) {
+            ForEach(Array(list.listItems.enumerated()), id: \.offset) { index, item in
+                renderListItem(item, bullet: "\(index + Int(list.startIndex)).", depth: depth)
+            }
+        }
+        .padding(.leading, depth > 0 ? theme.indentation : 0)
+    }
+
+    @ViewBuilder
+    private func renderUnorderedList(_ list: UnorderedList, depth: Int = 0) -> some View {
         VStack(alignment: .leading, spacing: theme.listItemSpacing) {
             ForEach(Array(list.listItems.enumerated()), id: \.offset) { _, item in
                 if item.checkbox != nil {
-                    renderTaskListItem(item)
+                    renderTaskListItem(item, depth: depth)
                 } else {
-                    renderListItem(item, bullet: "•")
+                    renderListItem(item, bullet: bulletForDepth(depth), depth: depth)
                 }
             }
         }
+        .padding(.leading, depth > 0 ? theme.indentation : 0)
     }
 
     @ViewBuilder
-    private func renderListItem(_ item: ListItem, bullet: String) -> some View {
+    private func renderListItem(_ item: ListItem, bullet: String, depth: Int) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Text(bullet)
                 .font(theme.bodyFont)
@@ -169,14 +179,14 @@ struct MarkdownRenderer: View {
 
             VStack(alignment: .leading, spacing: theme.listItemSpacing) {
                 ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in
-                    renderBlock(child)
+                    renderListChildBlock(child, depth: depth)
                 }
             }
         }
     }
 
     @ViewBuilder
-    private func renderTaskListItem(_ item: ListItem) -> some View {
+    private func renderTaskListItem(_ item: ListItem, depth: Int) -> some View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: item.checkbox?.isChecked == true ? "checkmark.square.fill" : "square")
                 .font(theme.bodyFont)
@@ -185,9 +195,20 @@ struct MarkdownRenderer: View {
 
             VStack(alignment: .leading, spacing: theme.listItemSpacing) {
                 ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in
-                    renderBlock(child)
+                    renderListChildBlock(child, depth: depth)
                 }
             }
+        }
+    }
+
+    /// Renders a child block within a list item, handling nested lists specially.
+    private func renderListChildBlock(_ markup: any Markup, depth: Int) -> AnyView {
+        if let nestedOrdered = markup as? OrderedList {
+            return AnyView(renderOrderedList(nestedOrdered, depth: depth + 1))
+        } else if let nestedUnordered = markup as? UnorderedList {
+            return AnyView(renderUnorderedList(nestedUnordered, depth: depth + 1))
+        } else {
+            return renderBlock(markup)
         }
     }
 
