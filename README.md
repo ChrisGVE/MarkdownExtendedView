@@ -245,7 +245,7 @@ Footnotes are:
 
 ## LaTeX Support
 
-MarkdownExtendedView uses [SwiftMath](https://github.com/mgriebling/SwiftMath) for native LaTeX rendering.
+MarkdownExtendedView uses [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath) for native LaTeX rendering (a fork of SwiftMath with extended symbol coverage).
 
 ### Inline Math
 
@@ -300,7 +300,7 @@ Current limitations that may be addressed in future versions:
 ## Dependencies
 
 - [swift-markdown](https://github.com/apple/swift-markdown) - Apple's Markdown parser (CommonMark + GFM)
-- [SwiftMath](https://github.com/mgriebling/SwiftMath) - Native LaTeX rendering
+- [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath) - Native LaTeX rendering (fork of SwiftMath)
 
 ## Contributing
 
