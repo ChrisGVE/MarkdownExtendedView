@@ -26,7 +26,7 @@ let package = Package(
             name: "MarkdownExtendedView",
             dependencies: [
                 .product(name: "Markdown", package: "swift-markdown"),
-                .product(name: "SwiftMath", package: "ExtendedSwiftMath"),
+                .product(name: "ExtendedSwiftMath", package: "ExtendedSwiftMath"),
             ]
         ),
         .testTarget(
