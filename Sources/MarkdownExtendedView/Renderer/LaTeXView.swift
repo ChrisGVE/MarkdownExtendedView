@@ -5,7 +5,7 @@
 // Licensed under MIT License
 
 import SwiftUI
-import SwiftMath
+import ExtendedSwiftMath
 
 /// A view that renders LaTeX equations using SwiftMath.
 struct LaTeXView: View {
