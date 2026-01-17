@@ -6,6 +6,7 @@
 [![Swift 5.9+](https://img.shields.io/badge/Swift-5.9+-orange.svg)](https://swift.org)
 [![iOS 16+](https://img.shields.io/badge/iOS-16%2B-blue.svg)](https://developer.apple.com/ios/)
 [![macOS 13+](https://img.shields.io/badge/macOS-13%2B-blue.svg)](https://developer.apple.com/macos/)
+[![CI](https://github.com/ChrisGVE/MarkdownExtendedView/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisGVE/MarkdownExtendedView/actions/workflows/ci.yml)
 
 A native SwiftUI Markdown renderer with LaTeX equation support.
 
