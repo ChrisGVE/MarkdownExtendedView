@@ -5,6 +5,25 @@ All notable changes to MarkdownExtendedView will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.4] - 2026-01-17
+
+### Fixed
+
+- Fix Swift Package Index build failures by adding `.spi.yml` configuration
+- Fix import statement from `SwiftMath` to `ExtendedSwiftMath` in LaTeXView.swift
+
+## [1.2.3] - 2026-01-11
+
+### Changed
+
+- Update ExtendedSwiftMath dependency version to 2.0.1
+
+## [1.2.1] - 2026-01-11
+
+### Changed
+
+- Change dependency package name from SwiftMath to ExtendedSwiftMath
+
 ## [1.2.0] - 2026-01-11
 
 ### Changed
@@ -76,6 +95,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform support for iOS 16+ and macOS 13+
 - Pure SwiftUI implementation
 
+[1.2.4]: https://github.com/ChrisGVE/MarkdownExtendedView/compare/1.2.3...1.2.4
+[1.2.3]: https://github.com/ChrisGVE/MarkdownExtendedView/compare/1.2.1...1.2.3
+[1.2.1]: https://github.com/ChrisGVE/MarkdownExtendedView/compare/1.2.0...1.2.1
 [1.2.0]: https://github.com/ChrisGVE/MarkdownExtendedView/compare/1.1.0...1.2.0
 [1.1.0]: https://github.com/ChrisGVE/MarkdownExtendedView/compare/1.0.2...1.1.0
 [1.0.2]: https://github.com/ChrisGVE/MarkdownExtendedView/compare/1.0.1...1.0.2
