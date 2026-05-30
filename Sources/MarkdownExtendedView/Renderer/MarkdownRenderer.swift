@@ -425,40 +425,69 @@ struct MarkdownRenderer: View {
 
 // MARK: - Flow Layout
 
-/// A simple flow layout for mixed text and views.
+/// A flow layout for mixed inline text and views that wraps to the container
+/// width.
+///
+/// Each subview is measured at its ideal size; a subview wider than the
+/// container is re-measured at the full width so long text wraps internally
+/// (multiple lines) instead of overflowing. Items that do not fit the remaining
+/// space on the current line move to the next line. The reported width never
+/// exceeds the proposed container width.
 struct FlowLayout: Layout {
     var spacing: CGFloat = 0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let result = computeLayout(proposal: proposal, subviews: subviews)
-        return result.size
+        let sizes = measuredSizes(proposal: proposal, subviews: subviews)
+        return Self.frames(forItemSizes: sizes, maxWidth: proposal.width ?? .infinity, spacing: spacing).totalSize
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let result = computeLayout(proposal: proposal, subviews: subviews)
+        let sizes = measuredSizes(proposal: proposal, subviews: subviews)
+        let result = Self.frames(forItemSizes: sizes, maxWidth: bounds.width, spacing: spacing)
 
-        for (index, subview) in subviews.enumerated() {
-            if index < result.positions.count {
-                let position = result.positions[index]
-                subview.place(at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y), proposal: .unspecified)
-            }
+        for (index, subview) in subviews.enumerated() where index < result.positions.count {
+            let position = result.positions[index]
+            let size = sizes[index]
+            subview.place(
+                at: CGPoint(x: bounds.minX + position.x, y: bounds.minY + position.y),
+                proposal: ProposedViewSize(width: size.width, height: size.height)
+            )
         }
     }
 
-    private func computeLayout(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, positions: [CGPoint]) {
+    /// Measures each subview, clamping over-wide subviews to the container width
+    /// so they wrap their own content.
+    private func measuredSizes(proposal: ProposedViewSize, subviews: Subviews) -> [CGSize] {
         let maxWidth = proposal.width ?? .infinity
+        return subviews.map { subview in
+            let ideal = subview.sizeThatFits(.unspecified)
+            if maxWidth.isFinite && ideal.width > maxWidth {
+                return subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            }
+            return ideal
+        }
+    }
+
+    /// Pure line-breaking core: lays out fixed-size items left-to-right, wrapping
+    /// to a new line when an item would exceed `maxWidth`. Exposed for testing.
+    ///
+    /// - Parameters:
+    ///   - sizes: The size of each item, in order.
+    ///   - maxWidth: The available container width (`.infinity` for unconstrained).
+    ///   - spacing: Horizontal/vertical gap between items.
+    /// - Returns: The top-left position of each item and the total bounding size
+    ///   (clamped to `maxWidth` when finite).
+    static func frames(forItemSizes sizes: [CGSize], maxWidth: CGFloat, spacing: CGFloat) -> (positions: [CGPoint], totalSize: CGSize) {
         var positions: [CGPoint] = []
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var lineHeight: CGFloat = 0
-        var totalHeight: CGFloat = 0
-        var totalWidth: CGFloat = 0
+        var maxLineWidth: CGFloat = 0
 
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-
-            if currentX + size.width > maxWidth && currentX > 0 {
-                // Move to next line
+        for size in sizes {
+            // Wrap when the item does not fit the remaining width (but never on
+            // an empty line, where it must be placed regardless).
+            if currentX > 0 && currentX + size.width > maxWidth {
                 currentX = 0
                 currentY += lineHeight + spacing
                 lineHeight = 0
@@ -468,11 +497,11 @@ struct FlowLayout: Layout {
 
             currentX += size.width + spacing
             lineHeight = max(lineHeight, size.height)
-            totalWidth = max(totalWidth, currentX)
+            maxLineWidth = max(maxLineWidth, currentX - spacing)
         }
 
-        totalHeight = currentY + lineHeight
-
-        return (CGSize(width: totalWidth, height: totalHeight), positions)
+        let totalHeight = currentY + lineHeight
+        let totalWidth = maxWidth.isFinite ? min(maxLineWidth, maxWidth) : maxLineWidth
+        return (positions, CGSize(width: max(totalWidth, 0), height: max(totalHeight, 0)))
     }
 }
