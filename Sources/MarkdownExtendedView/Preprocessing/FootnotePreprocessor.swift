@@ -169,12 +169,22 @@ public struct FootnotePreprocessor: Sendable {
         var currentFootnoteId: String?
         var currentFootnoteContent: [String] = []
 
+        // Track a running sum of prior line lengths instead of re-joining
+        // lines[0..<lineIndex] on every iteration (which made the whole pass
+        // quadratic in document length). The expression below reproduces the
+        // original `joined(separator: "\n").count` value exactly: the sum of
+        // preceding line lengths plus the newlines between them (lineIndex - 1).
+        let markdownCount = markdown.count
+        var precedingLength = 0
+
         for (lineIndex, line) in lines.enumerated() {
+            defer { precedingLength += line.count }
+
             // Calculate approximate position to check exclusion
-            let lineStart = lines[0..<lineIndex].joined(separator: "\n").count
+            let lineStart = precedingLength + max(lineIndex - 1, 0)
             let approximateIndex = markdown.index(
                 markdown.startIndex,
-                offsetBy: min(lineStart, markdown.count - 1),
+                offsetBy: min(lineStart, max(markdownCount - 1, 0)),
                 limitedBy: markdown.endIndex
             ) ?? markdown.startIndex
 
