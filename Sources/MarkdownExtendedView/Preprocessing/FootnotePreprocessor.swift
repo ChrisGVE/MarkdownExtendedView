@@ -274,20 +274,18 @@ public struct FootnotePreprocessor: Sendable {
             matches.append((range: fullRange, id: id))
         }
 
-        // Process matches in reverse order to maintain string indices
+        // First pass (forward): assign numbers in order of first appearance,
+        // so the earliest reference in the document becomes ¹.
+        for match in matches where refToNumber[match.id] == nil {
+            orderedRefs.append(match.id)
+            refToNumber[match.id] = orderedRefs.count
+        }
+
+        // Second pass (reverse): rewrite the string from end to start so that
+        // each replacement does not invalidate the ranges of earlier matches.
         for match in matches.reversed() {
-            let id = match.id
-
-            // Assign number if not already assigned
-            if refToNumber[id] == nil {
-                orderedRefs.append(id)
-                refToNumber[id] = orderedRefs.count
-            }
-
-            let number = refToNumber[id]!
-            let superscript = toSuperscript(number)
-
-            result.replaceSubrange(match.range, with: superscript)
+            let number = refToNumber[match.id]!
+            result.replaceSubrange(match.range, with: toSuperscript(number))
         }
 
         // Return refs in order of first appearance

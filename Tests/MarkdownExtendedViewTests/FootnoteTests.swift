@@ -184,6 +184,33 @@ final class FootnoteTests: XCTestCase {
         XCTAssertTrue(result.processedMarkdown.contains("³"))
     }
 
+    func testFootnoteNumberingFollowsAppearanceOrder() {
+        let markdown = """
+        First[^a] and second[^b] and third[^c].
+
+        [^a]: Alpha.
+        [^b]: Beta.
+        [^c]: Gamma.
+        """
+        let preprocessor = FootnotePreprocessor()
+        let result = preprocessor.process(markdown)
+        let out = result.processedMarkdown
+
+        // The first reference in the text must be numbered 1, second 2, third 3.
+        XCTAssertTrue(out.contains("First¹"), "first reference should become ¹, got: \(out)")
+        XCTAssertTrue(out.contains("second²"), "second reference should become ²")
+        XCTAssertTrue(out.contains("third³"), "third reference should become ³")
+
+        // The appended footnotes section must list definitions in numbered order.
+        guard let alpha = out.range(of: "Alpha"),
+              let beta = out.range(of: "Beta"),
+              let gamma = out.range(of: "Gamma") else {
+            return XCTFail("footnote definitions missing from output")
+        }
+        XCTAssertTrue(alpha.lowerBound < beta.lowerBound, "Alpha (¹) must be listed before Beta (²)")
+        XCTAssertTrue(beta.lowerBound < gamma.lowerBound, "Beta (²) must be listed before Gamma (³)")
+    }
+
     // MARK: - Feature Flag Tests
 
     func testFootnotesDisabledByDefault() {
