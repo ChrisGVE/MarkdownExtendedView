@@ -91,6 +91,17 @@ struct MermaidWebView: UIViewRepresentable {
                 }
             }
         }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            // Allow only the initial in-memory document load (.other). Cancel
+            // link activations, form submissions, and any other navigation so
+            // untrusted diagram content cannot pivot the WebView elsewhere.
+            decisionHandler(navigationAction.navigationType == .other ? .allow : .cancel)
+        }
     }
 }
 
@@ -135,6 +146,17 @@ struct MermaidWebView: NSViewRepresentable {
                 }
             }
         }
+
+        func webView(
+            _ webView: WKWebView,
+            decidePolicyFor navigationAction: WKNavigationAction,
+            decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+        ) {
+            // Allow only the initial in-memory document load (.other). Cancel
+            // link activations, form submissions, and any other navigation so
+            // untrusted diagram content cannot pivot the WebView elsewhere.
+            decisionHandler(navigationAction.navigationType == .other ? .allow : .cancel)
+        }
     }
 }
 
@@ -143,12 +165,19 @@ struct MermaidWebView: NSViewRepresentable {
 // MARK: - HTML Generation
 
 /// Generates the HTML document for rendering a Mermaid diagram.
-private func generateHTML(for code: String) -> String {
-    // Escape the code for use in HTML/JavaScript
+///
+/// The diagram source is HTML-escaped and rendered with Mermaid's `strict`
+/// security level so that untrusted Markdown cannot inject executable markup
+/// into the WebView.
+func generateHTML(for code: String) -> String {
+    // HTML-escape the diagram source so it is treated as text content, not
+    // markup. Mermaid reads the element's text, so escaping `&`, `<`, and `>`
+    // preserves the diagram while preventing raw `<script>`/HTML injection.
+    // `&` must be replaced first to avoid double-escaping the entities below.
     let escapedCode = code
-        .replacingOccurrences(of: "\\", with: "\\\\")
-        .replacingOccurrences(of: "`", with: "\\`")
-        .replacingOccurrences(of: "$", with: "\\$")
+        .replacingOccurrences(of: "&", with: "&amp;")
+        .replacingOccurrences(of: "<", with: "&lt;")
+        .replacingOccurrences(of: ">", with: "&gt;")
 
     return """
     <!DOCTYPE html>
@@ -188,10 +217,10 @@ private func generateHTML(for code: String) -> String {
             mermaid.initialize({
                 startOnLoad: true,
                 theme: 'neutral',
-                securityLevel: 'loose',
+                securityLevel: 'strict',
                 flowchart: {
                     useMaxWidth: true,
-                    htmlLabels: true
+                    htmlLabels: false
                 }
             });
         </script>

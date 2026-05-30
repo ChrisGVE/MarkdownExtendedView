@@ -240,4 +240,44 @@ final class MermaidTests: XCTestCase {
         XCTAssertEqual(codeBlock.language, "mermaid")
         XCTAssertTrue(codeBlock.code.contains("stateDiagram"))
     }
+
+    // MARK: - Security Tests
+
+    func testGeneratedHTMLEscapesScriptInjection() {
+        let malicious = "graph TD; A-->B<script>alert(1)</script>"
+        let html = generateHTML(for: malicious)
+
+        // The injected script must not survive as live markup.
+        XCTAssertFalse(
+            html.contains("<script>alert(1)</script>"),
+            "raw <script> from diagram source must be HTML-escaped"
+        )
+        // It must appear in escaped form inside the diagram container.
+        XCTAssertTrue(
+            html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"),
+            "diagram source should be HTML-escaped, got: \(html)"
+        )
+    }
+
+    func testGeneratedHTMLEscapesAngleBracketsAndAmpersands() {
+        let html = generateHTML(for: "A & B < C > D")
+        XCTAssertTrue(html.contains("A &amp; B &lt; C &gt; D"))
+    }
+
+    func testGeneratedHTMLUsesStrictSecurityLevel() {
+        let html = generateHTML(for: "graph TD; A-->B")
+        XCTAssertTrue(html.contains("securityLevel: 'strict'"), "must use strict security level")
+        XCTAssertFalse(html.contains("securityLevel: 'loose'"), "loose security level is unsafe")
+    }
+
+    func testGeneratedHTMLDisablesHTMLLabels() {
+        let html = generateHTML(for: "graph TD; A-->B")
+        XCTAssertTrue(html.contains("htmlLabels: false"), "HTML labels must be disabled under strict mode")
+    }
+
+    func testAmpersandEscapedBeforeOtherEntities() {
+        // Ensure no double-escaping: "&lt;" in source becomes "&amp;lt;", not "&lt;".
+        let html = generateHTML(for: "&lt;")
+        XCTAssertTrue(html.contains("&amp;lt;"))
+    }
 }
