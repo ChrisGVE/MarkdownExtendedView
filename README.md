@@ -1,6 +1,6 @@
 # MarkdownExtendedView
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat)](https://opensource.org/licenses/MIT)
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg?style=flat)](https://opensource.org/licenses/Apache-2.0)
 [![GitHub Release](https://img.shields.io/github/v/release/ChrisGVE/MarkdownExtendedView?style=flat&logo=github)](https://github.com/ChrisGVE/MarkdownExtendedView/releases)
 [![CI](https://github.com/ChrisGVE/MarkdownExtendedView/actions/workflows/ci.yml/badge.svg)](https://github.com/ChrisGVE/MarkdownExtendedView/actions/workflows/ci.yml)
 [![Swift Package Index](https://img.shields.io/endpoint?url=https%3A%2F%2Fswiftpackageindex.com%2Fapi%2Fpackages%2FChrisGVE%2FMarkdownExtendedView%2Fbadge%3Ftype%3Dswift-versions)](https://swiftpackageindex.com/ChrisGVE/MarkdownExtendedView)
@@ -316,4 +316,4 @@ Contributions are welcome! Please feel free to submit issues and pull requests.
 
 ## License
 
-MIT License - Copyright (c) 2025 Christian C. Berclaz. See [LICENSE](LICENSE) for details.
+Apache License 2.0 - Copyright 2025 Christian C. Berclaz. See [LICENSE](LICENSE) and [NOTICE](NOTICE) for details.
