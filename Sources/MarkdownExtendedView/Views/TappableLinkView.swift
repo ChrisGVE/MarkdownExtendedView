@@ -25,7 +25,10 @@ import Markdown
 /// A custom handler can be provided to override the default behavior.
 struct TappableLinkView: View {
 
-    let link: Markdown.Link
+    /// The raw link destination string from the markdown.
+    let destination: String?
+    /// The flattened, styled content of the link.
+    let content: [InlineFragment]
     let theme: MarkdownTheme
     let linkHandler: ((URL) -> Void)?
     let baseURL: URL?
@@ -61,38 +64,15 @@ struct TappableLinkView: View {
         }
     }
 
-    /// Builds the Text from the link's children.
+    /// Builds the Text from the link's flattened content, preserving styling
+    /// (bold / italic / code) on the link label.
     private func buildLinkText() -> SwiftUI.Text {
-        var result = SwiftUI.Text("")
-        for child in link.children {
-            if let textNode = child as? Markdown.Text {
-                result = result + SwiftUI.Text(textNode.string)
-            } else if child is Strong {
-                let inner = extractPlainText(from: child)
-                result = result + SwiftUI.Text(inner).bold()
-            } else if child is Emphasis {
-                let inner = extractPlainText(from: child)
-                result = result + SwiftUI.Text(inner).italic()
-            } else if let code = child as? InlineCode {
-                result = result + SwiftUI.Text(code.code).font(theme.codeFont)
-            } else if let plain = child as? any PlainTextConvertibleMarkup {
-                result = result + SwiftUI.Text(plain.plainText)
-            }
-        }
-        return result.font(theme.bodyFont)
-    }
-
-    /// Extracts plain text from markup.
-    private func extractPlainText(from markup: any Markup) -> String {
-        if let plain = markup as? any PlainTextConvertibleMarkup {
-            return plain.plainText
-        }
-        return markup.children.map { extractPlainText(from: $0) }.joined()
+        InlineTextRenderer.text(content, theme: theme).font(theme.bodyFont)
     }
 
     /// The resolved URL from the link destination.
     private var resolvedURL: URL? {
-        guard let destination = link.destination else { return nil }
+        guard let destination = destination else { return nil }
 
         // Try to create URL directly
         if let url = URL(string: destination) {

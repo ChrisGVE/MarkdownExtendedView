@@ -45,45 +45,62 @@ enum LaTeXPreprocessor {
     /// - Parameter text: The text to scan for LaTeX.
     /// - Returns: Array of segments in order.
     static func extractSegments(from text: String) -> [Segment] {
-        var segments: [Segment] = []
-        var currentIndex = text.startIndex
-        var textBuffer = ""
+        segmentsWithRanges(Array(text)).map { ranged in
+            ranged.isLaTeX
+                ? .latex(ranged.content, isBlock: ranged.isBlock)
+                : .text(ranged.content)
+        }
+    }
 
-        while currentIndex < text.endIndex {
-            // Check for display math ($$...$$) first
-            if let displayMatch = findDisplayMath(in: text, from: currentIndex) {
-                // Flush text buffer
-                if !textBuffer.isEmpty {
-                    segments.append(.text(textBuffer))
-                    textBuffer = ""
-                }
-                segments.append(.latex(displayMatch.content, isBlock: true))
-                currentIndex = displayMatch.endIndex
+    /// Scans a character array for LaTeX, returning ordered segments annotated
+    /// with the character range they occupy in the source array.
+    ///
+    /// This is the single source of truth for LaTeX boundary detection. Both the
+    /// string-based ``extractSegments(from:)`` and the style-preserving inline
+    /// flattener build on it; the ranges let callers map segments back onto
+    /// per-character styling.
+    ///
+    /// - Parameter characters: The source characters to scan.
+    /// - Returns: Text and LaTeX segments in order. Text segments carry their
+    ///   verbatim content; LaTeX segments carry the inner equation (display math
+    ///   is trimmed, inline math is raw) and the full delimited range.
+    static func segmentsWithRanges(_ characters: [Character]) -> [RangedSegment] {
+        var segments: [RangedSegment] = []
+        let count = characters.count
+        var index = 0
+        var textStart = 0
+
+        func flushText(upTo end: Int) {
+            guard textStart < end else { return }
+            segments.append(RangedSegment(
+                range: textStart..<end,
+                isLaTeX: false,
+                content: String(characters[textStart..<end]),
+                isBlock: false
+            ))
+        }
+
+        while index < count {
+            if let match = findDisplayMath(characters, from: index) {
+                flushText(upTo: index)
+                segments.append(RangedSegment(range: index..<match.end, isLaTeX: true, content: match.content, isBlock: true))
+                index = match.end
+                textStart = index
                 continue
             }
 
-            // Check for inline math ($...$)
-            if let inlineMatch = findInlineMath(in: text, from: currentIndex) {
-                // Flush text buffer
-                if !textBuffer.isEmpty {
-                    segments.append(.text(textBuffer))
-                    textBuffer = ""
-                }
-                segments.append(.latex(inlineMatch.content, isBlock: false))
-                currentIndex = inlineMatch.endIndex
+            if let match = findInlineMath(characters, from: index) {
+                flushText(upTo: index)
+                segments.append(RangedSegment(range: index..<match.end, isLaTeX: true, content: match.content, isBlock: false))
+                index = match.end
+                textStart = index
                 continue
             }
 
-            // Regular character - add to buffer
-            textBuffer.append(text[currentIndex])
-            currentIndex = text.index(after: currentIndex)
+            index += 1
         }
 
-        // Flush remaining text buffer
-        if !textBuffer.isEmpty {
-            segments.append(.text(textBuffer))
-        }
-
+        flushText(upTo: count)
         return segments
     }
 
@@ -105,103 +122,98 @@ enum LaTeXPreprocessor {
         case latex(String, isBlock: Bool)
     }
 
+    /// A segment annotated with the character range it occupies in the source.
+    struct RangedSegment: Equatable {
+        /// The half-open range of source character indices this segment spans
+        /// (including delimiters for LaTeX segments).
+        let range: Range<Int>
+        /// Whether this segment is a LaTeX equation.
+        let isLaTeX: Bool
+        /// Text content (verbatim) or the inner equation for LaTeX segments.
+        let content: String
+        /// For LaTeX segments, whether it is display (block) math.
+        let isBlock: Bool
+    }
+
     // MARK: - Private Helpers
 
     private struct Match {
         let content: String
-        let endIndex: String.Index
+        let end: Int
     }
 
-    /// Find display math ($$...$$) starting at the given index.
-    private static func findDisplayMath(in text: String, from startIndex: String.Index) -> Match? {
-        // Check if we have "$$" at current position
-        guard startIndex < text.endIndex else { return nil }
-        let remaining = text[startIndex...]
+    /// Find display math ($$...$$) starting at the given character index.
+    private static func findDisplayMath(_ characters: [Character], from start: Int) -> Match? {
+        let count = characters.count
+        guard start + 1 < count, characters[start] == "$", characters[start + 1] == "$" else { return nil }
 
-        guard remaining.hasPrefix("$$") else { return nil }
+        let contentStart = start + 2
+        guard contentStart < count else { return nil }
 
-        // Find closing "$$"
-        let contentStart = text.index(startIndex, offsetBy: 2)
-        guard contentStart < text.endIndex else { return nil }
-
-        // Search for closing $$
-        var searchIndex = contentStart
-        while searchIndex < text.endIndex {
-            let searchRemaining = text[searchIndex...]
-            if searchRemaining.hasPrefix("$$") {
-                let content = String(text[contentStart..<searchIndex])
-                let endIndex = text.index(searchIndex, offsetBy: 2)
-                return Match(content: content.trimmingCharacters(in: .whitespacesAndNewlines), endIndex: endIndex)
+        var search = contentStart
+        while search < count {
+            if characters[search] == "$", search + 1 < count, characters[search + 1] == "$" {
+                let content = String(characters[contentStart..<search])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                return Match(content: content, end: search + 2)
             }
-            searchIndex = text.index(after: searchIndex)
+            search += 1
         }
 
         return nil // No closing $$ found
     }
 
-    /// Find inline math ($...$) starting at the given index.
+    /// Find inline math ($...$) starting at the given character index.
     /// Does not match $$ (which is display math).
-    private static func findInlineMath(in text: String, from startIndex: String.Index) -> Match? {
-        // Check if we have "$" at current position (but not "$$")
-        guard startIndex < text.endIndex else { return nil }
-        let remaining = text[startIndex...]
+    private static func findInlineMath(_ characters: [Character], from start: Int) -> Match? {
+        let count = characters.count
+        guard start < count, characters[start] == "$" else { return nil }
 
         // Must start with single $ but not $$
-        guard remaining.hasPrefix("$") && !remaining.hasPrefix("$$") else { return nil }
+        if start + 1 < count, characters[start + 1] == "$" { return nil }
 
-        // Find closing "$" (not "$$")
-        let contentStart = text.index(after: startIndex)
-        guard contentStart < text.endIndex else { return nil }
+        let contentStart = start + 1
+        guard contentStart < count else { return nil }
 
         // The content after $ shouldn't start with space (standard LaTeX rule)
-        if text[contentStart].isWhitespace { return nil }
+        if characters[contentStart].isWhitespace { return nil }
 
-        // Search for closing $
-        var searchIndex = contentStart
-        while searchIndex < text.endIndex {
-            let char = text[searchIndex]
+        var search = contentStart
+        while search < count {
+            let character = characters[search]
 
-            // Check for closing $ (not preceded by \ and not followed by another $)
-            if char == "$" {
-                // Check it's not escaped
-                if searchIndex > contentStart {
-                    let prevIndex = text.index(before: searchIndex)
-                    if text[prevIndex] == "\\" {
-                        searchIndex = text.index(after: searchIndex)
-                        continue
-                    }
-                }
-
-                // Check it's not $$ (would be display math)
-                let nextIndex = text.index(after: searchIndex)
-                if nextIndex < text.endIndex && text[nextIndex] == "$" {
-                    searchIndex = text.index(after: searchIndex)
+            if character == "$" {
+                // Check it's not escaped.
+                if search > contentStart, characters[search - 1] == "\\" {
+                    search += 1
                     continue
                 }
 
-                // Check content doesn't end with space
-                let prevIndex = text.index(before: searchIndex)
-                if text[prevIndex].isWhitespace {
-                    searchIndex = text.index(after: searchIndex)
+                // Check it's not $$ (would be display math).
+                if search + 1 < count, characters[search + 1] == "$" {
+                    search += 1
                     continue
                 }
 
-                let content = String(text[contentStart..<searchIndex])
-                // Don't match empty content
+                // Check content doesn't end with space.
+                if characters[search - 1].isWhitespace {
+                    search += 1
+                    continue
+                }
+
+                let content = String(characters[contentStart..<search])
                 if content.isEmpty {
-                    searchIndex = text.index(after: searchIndex)
+                    search += 1
                     continue
                 }
 
-                return Match(content: content, endIndex: nextIndex)
+                return Match(content: content, end: search + 1)
             }
 
-            // Don't allow newlines in inline math
-            if char.isNewline {
-                return nil
-            }
+            // Don't allow newlines in inline math.
+            if character.isNewline { return nil }
 
-            searchIndex = text.index(after: searchIndex)
+            search += 1
         }
 
         return nil // No closing $ found

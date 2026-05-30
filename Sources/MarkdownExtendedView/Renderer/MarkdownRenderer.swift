@@ -301,247 +301,125 @@ struct MarkdownRenderer: View {
 
     // MARK: - Inline Rendering
 
-    @ViewBuilder
-    private func renderInlineChildren(_ parent: any Markup) -> some View {
-        let inlineText = buildInlineText(from: parent)
-        inlineText
-    }
-
-    /// Builds a Text view from inline children, handling LaTeX segments and links.
-    private func buildInlineText(from parent: any Markup) -> some View {
-        let plainText = extractPlainText(from: parent)
-
-        // Check if text contains LaTeX
-        if LaTeXPreprocessor.containsLaTeX(plainText) {
-            return AnyView(renderTextWithLaTeX(parent))
-        }
-
-        // Check if links are enabled and content contains links
-        if linksEnabled && containsLinks(parent) {
-            return AnyView(renderTextWithLinks(parent))
-        }
-
-        // Check if images are enabled and content contains images
-        if imagesEnabled && containsImages(parent) {
-            return AnyView(renderTextWithImages(parent))
-        }
-
-        return AnyView(buildAttributedText(from: parent))
-    }
-
     /// Whether image loading is enabled.
     private var imagesEnabled: Bool {
         features.contains(.images)
     }
 
-    /// Checks if the markup contains any Link nodes.
-    private func containsLinks(_ parent: any Markup) -> Bool {
-        for child in parent.children {
-            if child is Markdown.Link { return true }
-            if containsLinks(child) { return true }
-        }
-        return false
-    }
-
-    /// Checks if the markup contains any Image nodes.
-    private func containsImages(_ parent: any Markup) -> Bool {
-        for child in parent.children {
-            if child is Markdown.Image { return true }
-            if containsImages(child) { return true }
-        }
-        return false
-    }
-
-    /// Renders text with images using flow layout.
+    /// Renders the inline children of `parent`, preserving styling across LaTeX,
+    /// links, and images.
     @ViewBuilder
-    private func renderTextWithImages(_ parent: any Markup) -> some View {
-        FlowLayout(spacing: 0) {
-            ForEach(Array(parent.children.enumerated()), id: \.offset) { _, child in
-                renderInlineElementAsView(child)
+    private func renderInlineChildren(_ parent: any Markup) -> some View {
+        let fragments = InlineFlattener.fragments(for: parent)
+        renderInlineFragments(fragments)
+    }
+
+    /// Chooses between the fast single-`Text` path and the flow-layout path.
+    ///
+    /// The flow path is only needed when a real subview (LaTeX, an enabled image,
+    /// or an enabled link) must sit inline; otherwise a single concatenated
+    /// `Text` wraps naturally and is cheaper.
+    @ViewBuilder
+    private func renderInlineFragments(_ fragments: [InlineFragment]) -> some View {
+        if needsFlowLayout(fragments) {
+            renderFlow(fragments)
+        } else {
+            InlineTextRenderer.text(fragments, theme: theme)
+        }
+    }
+
+    /// Whether any fragment requires a dedicated inline subview.
+    private func needsFlowLayout(_ fragments: [InlineFragment]) -> Bool {
+        fragments.contains { fragment in
+            switch fragment {
+            case .latex: return true
+            case .image: return imagesEnabled
+            case .link: return linksEnabled
+            default: return false
             }
         }
     }
 
-    /// Renders text with clickable links using flow layout.
+    /// Render-ready flow item: either coalesced text or a standalone subview.
+    private enum FlowItem {
+        case text(SwiftUI.Text)
+        case latex(String, isBlock: Bool)
+        case image(source: String?, alt: String)
+        case link(destination: String?, content: [InlineFragment])
+    }
+
+    /// Renders fragments in a wrapping flow layout, coalescing adjacent text /
+    /// break / disabled-feature fragments into single `Text` runs.
     @ViewBuilder
-    private func renderTextWithLinks(_ parent: any Markup) -> some View {
+    private func renderFlow(_ fragments: [InlineFragment]) -> some View {
+        let items = buildFlowItems(fragments)
         FlowLayout(spacing: 0) {
-            ForEach(Array(parent.children.enumerated()), id: \.offset) { _, child in
-                renderInlineElementAsView(child)
+            ForEach(Array(items.enumerated()), id: \.offset) { _, item in
+                renderFlowItem(item)
             }
         }
     }
 
-    /// Renders an inline element as a View (for use in flow layout with links).
+    /// Coalesces fragments into flow items. Text, breaks, and disabled
+    /// images/links merge into a running `Text`; LaTeX and enabled
+    /// images/links break the run into their own items.
+    private func buildFlowItems(_ fragments: [InlineFragment]) -> [FlowItem] {
+        var items: [FlowItem] = []
+        var pending: SwiftUI.Text?
+
+        func flush() {
+            if let pending { items.append(.text(pending)) }
+            pending = nil
+        }
+        func append(_ text: SwiftUI.Text) {
+            pending = pending.map { $0 + text } ?? text
+        }
+
+        for fragment in fragments {
+            switch fragment {
+            case .latex(let latex, let isBlock):
+                flush()
+                items.append(.latex(latex, isBlock: isBlock))
+            case .image(let source, let alt):
+                if imagesEnabled {
+                    flush()
+                    items.append(.image(source: source, alt: alt))
+                } else {
+                    append(InlineTextRenderer.text(for: fragment, theme: theme))
+                }
+            case .link(let destination, let content):
+                if linksEnabled {
+                    flush()
+                    items.append(.link(destination: destination, content: content))
+                } else {
+                    append(InlineTextRenderer.text(for: fragment, theme: theme))
+                }
+            default:
+                append(InlineTextRenderer.text(for: fragment, theme: theme))
+            }
+        }
+        flush()
+        return items
+    }
+
     @ViewBuilder
-    private func renderInlineElementAsView(_ element: any Markup) -> some View {
-        switch element {
-        case let text as Markdown.Text:
-            SwiftUI.Text(text.string)
-                .font(theme.bodyFont)
-                .foregroundColor(theme.textColor)
-
-        case let strong as Strong:
-            renderStrongAsView(strong)
-
-        case let emphasis as Emphasis:
-            renderEmphasisAsView(emphasis)
-
-        case let link as Markdown.Link:
+    private func renderFlowItem(_ item: FlowItem) -> some View {
+        switch item {
+        case .text(let text):
+            text
+        case .latex(let latex, let isBlock):
+            LaTeXView(latex: latex, isBlock: isBlock, theme: theme)
+        case .image(let source, let alt):
+            MarkdownImageView(source: source, altText: alt, theme: theme, baseURL: baseURL)
+        case .link(let destination, let content):
             TappableLinkView(
-                link: link,
+                destination: destination,
+                content: content,
                 theme: theme,
                 linkHandler: linkHandler,
                 baseURL: baseURL
             )
-
-        case let code as InlineCode:
-            SwiftUI.Text(code.code)
-                .font(theme.codeFont)
-                .foregroundColor(theme.textColor)
-
-        case _ as SoftBreak:
-            SwiftUI.Text(" ")
-                .font(theme.bodyFont)
-                .foregroundColor(theme.textColor)
-
-        case _ as LineBreak:
-            SwiftUI.Text("\n")
-                .font(theme.bodyFont)
-                .foregroundColor(theme.textColor)
-
-        case let image as Markdown.Image:
-            MarkdownImageView(
-                image: image,
-                theme: theme,
-                baseURL: baseURL
-            )
-
-        default:
-            if let plainText = element as? any PlainTextConvertibleMarkup {
-                SwiftUI.Text(plainText.plainText)
-                    .font(theme.bodyFont)
-                    .foregroundColor(theme.textColor)
-            }
         }
-    }
-
-    /// Helper for rendering Strong in flow layout (simplified to avoid type inference issues).
-    @ViewBuilder
-    private func renderStrongAsView(_ strong: Strong) -> some View {
-        // Simplified: render plain text with bold styling
-        SwiftUI.Text(extractPlainText(from: strong))
-            .bold()
-            .font(theme.bodyFont)
-            .foregroundColor(theme.textColor)
-    }
-
-    /// Helper for rendering Emphasis in flow layout (simplified to avoid type inference issues).
-    @ViewBuilder
-    private func renderEmphasisAsView(_ emphasis: Emphasis) -> some View {
-        // Simplified: render plain text with italic styling
-        SwiftUI.Text(extractPlainText(from: emphasis))
-            .italic()
-            .font(theme.bodyFont)
-            .foregroundColor(theme.textColor)
-    }
-
-    /// Renders text that may contain inline LaTeX.
-    @ViewBuilder
-    private func renderTextWithLaTeX(_ parent: any Markup) -> some View {
-        let plainText = extractPlainText(from: parent)
-        let segments = LaTeXPreprocessor.extractSegments(from: plainText)
-
-        // Use a flow layout to handle mixed text and LaTeX
-        FlowLayout(spacing: 0) {
-            ForEach(Array(segments.enumerated()), id: \.offset) { item in
-                renderSegment(item.element)
-            }
-        }
-    }
-
-    /// Renders a single LaTeX segment.
-    @ViewBuilder
-    private func renderSegment(_ segment: LaTeXPreprocessor.Segment) -> some View {
-        switch segment {
-        case .text(let text):
-            SwiftUI.Text(text)
-                .font(theme.bodyFont)
-                .foregroundColor(theme.textColor)
-
-        case .latex(let latex, let isBlock):
-            LaTeXView(latex: latex, isBlock: isBlock, theme: theme)
-        }
-    }
-
-    /// Builds attributed text for inline content without LaTeX.
-    private func buildAttributedText(from parent: any Markup) -> SwiftUI.Text {
-        var result = SwiftUI.Text("")
-        for child in parent.children {
-            result = result + renderInlineElement(child)
-        }
-        return result
-    }
-
-    /// Renders a single inline element to Text.
-    private func renderInlineElement(_ element: any Markup) -> SwiftUI.Text {
-        switch element {
-        case let text as Markdown.Text:
-            return SwiftUI.Text(text.string)
-
-        case let strong as Strong:
-            let inner = buildTextFromChildren(strong)
-            return inner.bold()
-
-        case let emphasis as Emphasis:
-            let inner = buildTextFromChildren(emphasis)
-            return inner.italic()
-
-        case let strikethrough as Strikethrough:
-            let inner = buildTextFromChildren(strikethrough)
-            return inner.strikethrough()
-
-        case let code as InlineCode:
-            return SwiftUI.Text(code.code)
-                .font(theme.codeFont)
-
-        case let link as Markdown.Link:
-            let inner = buildTextFromChildren(link)
-            return inner.foregroundColor(theme.linkColor)
-
-        case _ as SoftBreak:
-            return SwiftUI.Text(" ")
-
-        case _ as LineBreak:
-            return SwiftUI.Text("\n")
-
-        case let image as Markdown.Image:
-            // Display alt text for images (actual image loading would need AsyncImage)
-            return SwiftUI.Text("[\(image.plainText)]")
-                .foregroundColor(theme.secondaryTextColor)
-
-        default:
-            // For any other inline elements, try to extract plain text
-            if let plainText = element as? any PlainTextConvertibleMarkup {
-                return SwiftUI.Text(plainText.plainText)
-            }
-            return SwiftUI.Text("")
-        }
-    }
-
-    /// Builds Text from children of a markup element.
-    private func buildTextFromChildren(_ parent: any Markup) -> SwiftUI.Text {
-        parent.children.reduce(SwiftUI.Text("")) { result, child in
-            result + renderInlineElement(child)
-        }
-    }
-
-    /// Extracts plain text from markup for LaTeX detection.
-    private func extractPlainText(from markup: any Markup) -> String {
-        if let plainText = markup as? any PlainTextConvertibleMarkup {
-            return plainText.plainText
-        }
-        return markup.children.map { extractPlainText(from: $0) }.joined()
     }
 }
 

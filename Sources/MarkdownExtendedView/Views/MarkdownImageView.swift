@@ -24,7 +24,10 @@ import Markdown
 /// images using AsyncImage. When disabled, it shows the alt text.
 struct MarkdownImageView: View {
 
-    let image: Markdown.Image
+    /// The raw image source URL string from the markdown.
+    let source: String?
+    /// The image alt text.
+    let altText: String
     let theme: MarkdownTheme
     let baseURL: URL?
 
@@ -42,7 +45,7 @@ struct MarkdownImageView: View {
                     loadedImage
                         .resizable()
                         .aspectRatio(contentMode: .fit)
-                        .accessibilityLabel(image.plainText)
+                        .accessibilityLabel(altText)
 
                 case .failure:
                     errorPlaceholder
@@ -58,7 +61,7 @@ struct MarkdownImageView: View {
 
     /// The alt text fallback when images are disabled or unavailable.
     private var altTextView: some View {
-        Text("[\(image.plainText)]")
+        Text("[\(altText)]")
             .font(theme.bodyFont)
             .foregroundColor(theme.secondaryTextColor)
     }
@@ -69,8 +72,8 @@ struct MarkdownImageView: View {
             Image(systemName: "photo")
                 .font(.title2)
                 .foregroundColor(theme.secondaryTextColor)
-            if !image.plainText.isEmpty {
-                Text(image.plainText)
+            if !altText.isEmpty {
+                Text(altText)
                     .font(theme.bodyFont)
                     .foregroundColor(theme.secondaryTextColor)
             }
@@ -82,7 +85,7 @@ struct MarkdownImageView: View {
 
     /// Resolves the image URL from the source string.
     private var resolvedURL: URL? {
-        guard let source = image.source else { return nil }
+        guard let source = source else { return nil }
 
         // Try to create URL directly
         if let url = URL(string: source) {
