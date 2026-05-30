@@ -10,7 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Fix Swift Package Index build failures by adding `.spi.yml` configuration
-- Fix import statement from `SwiftMath` to `ExtendedSwiftMath` in LaTeXView.swift
+- Fix import statement to `ExtendedSwiftMath` in LaTeXView.swift
 
 ## [1.2.3] - 2026-01-11
 
@@ -22,13 +22,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- Change dependency package name from SwiftMath to ExtendedSwiftMath
+- Change dependency package name to ExtendedSwiftMath
 
 ## [1.2.0] - 2026-01-11
 
 ### Changed
 
-- Switched LaTeX dependency from SwiftMath to [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath)
+- Switched LaTeX dependency to [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath)
   - Drop-in replacement with planned extended symbol coverage
   - No API changes required
 
@@ -90,7 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release
 - GitHub Flavored Markdown parsing via swift-markdown
-- LaTeX equation support via SwiftMath (inline `$...$` and display `$$...$$`)
+- LaTeX equation support via ExtendedSwiftMath (inline `$...$` and display `$$...$$`)
 - Theming system with default, gitHub, and compact themes
 - Cross-platform support for iOS 16+ and macOS 13+
 - Pure SwiftUI implementation
