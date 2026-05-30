@@ -14,7 +14,7 @@ A native SwiftUI Markdown renderer with LaTeX equation support.
 ## Features
 
 - **GitHub Flavored Markdown** parsing via Apple's swift-markdown
-- **LaTeX equations** rendered natively via SwiftMath
+- **LaTeX equations** rendered natively via [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath)
   - Inline math: `$...$`
   - Display math: `$$...$$`
 - **Task lists** with checkbox rendering (`- [ ]` and `- [x]`)
@@ -247,7 +247,7 @@ Footnotes are:
 
 ## LaTeX Support
 
-MarkdownExtendedView uses [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath) for native LaTeX rendering (a fork of SwiftMath with extended symbol coverage).
+The math rendering is powered by [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath), our companion library for native LaTeX rendering with extended symbol coverage.
 
 ### Inline Math
 
@@ -269,7 +269,7 @@ $$x = \frac{-b \pm \sqrt{b^2-4ac}}{2a}$$
 
 ### Supported LaTeX Commands
 
-SwiftMath supports a wide range of LaTeX math commands including:
+ExtendedSwiftMath supports a wide range of LaTeX math commands including:
 
 - **Greek letters**: `\alpha`, `\beta`, `\gamma`, `\pi`, `\theta`, etc.
 - **Operators**: `\sum`, `\prod`, `\int`, `\lim`, `\log`, `\sin`, `\cos`, etc.
@@ -281,7 +281,7 @@ SwiftMath supports a wide range of LaTeX math commands including:
 - **Accents**: `\hat{x}`, `\bar{x}`, `\vec{x}`, `\dot{x}`
 - **Symbols**: `\infty`, `\partial`, `\nabla`, `\forall`, `\exists`
 
-For a complete reference, see the [SwiftMath documentation](https://github.com/mgriebling/SwiftMath).
+For a complete reference, see the [ExtendedSwiftMath documentation](https://github.com/ChrisGVE/ExtendedSwiftMath).
 
 ## Known Limitations
 
@@ -302,7 +302,7 @@ Current limitations that may be addressed in future versions:
 ## Dependencies
 
 - [swift-markdown](https://github.com/apple/swift-markdown) - Apple's Markdown parser (CommonMark + GFM)
-- [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath) - Native LaTeX rendering (fork of SwiftMath)
+- [ExtendedSwiftMath](https://github.com/ChrisGVE/ExtendedSwiftMath) - Our companion library for native LaTeX rendering
 
 ## Contributing
 

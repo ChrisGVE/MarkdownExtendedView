@@ -2,7 +2,7 @@
 // MarkdownExtendedView
 //
 // A native SwiftUI Markdown renderer with LaTeX support.
-// Uses Apple's swift-markdown for parsing and SwiftMath for LaTeX rendering.
+// Uses Apple's swift-markdown for parsing and ExtendedSwiftMath for LaTeX rendering.
 //
 // Copyright 2025 Christian C. Berclaz
 //

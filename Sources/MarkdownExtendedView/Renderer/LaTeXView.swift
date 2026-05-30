@@ -18,7 +18,7 @@
 import SwiftUI
 import ExtendedSwiftMath
 
-/// A view that renders LaTeX equations using SwiftMath.
+/// A view that renders LaTeX equations using ExtendedSwiftMath.
 struct LaTeXView: View {
 
     let latex: String
@@ -58,9 +58,9 @@ struct LaTeXView: View {
     }
 }
 
-// MARK: - MathView (SwiftMath Wrapper)
+// MARK: - MathView (ExtendedSwiftMath Wrapper)
 
-/// A SwiftUI wrapper for SwiftMath's MTMathUILabel.
+/// A SwiftUI wrapper for ExtendedSwiftMath's MTMathUILabel.
 struct MathView {
 
     let latex: String
