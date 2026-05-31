@@ -365,10 +365,6 @@ enum InlineTextRenderer {
         }
     }
 
-    /// Approximate background colour for `<mark>` highlighting until it becomes a
-    /// themeable element (see task 13).
-    private static let highlightColor = Color.yellow.opacity(0.35)
-
     /// Applies an ``InlineStyle`` to a string. Font and colour for plain runs are
     /// inherited from the surrounding context; only code runs override the font.
     static func styled(_ string: String, _ style: InlineStyle, theme: MarkdownTheme) -> SwiftUI.Text {
@@ -382,7 +378,7 @@ enum InlineTextRenderer {
         if style.isCode { text = text.font(theme.codeFont) }
         if style.isBold { text = text.bold() }
         if style.isItalic { text = text.italic() }
-        if style.isStrikethrough { text = text.strikethrough() }
+        if style.isStrikethrough { text = text.strikethrough(true, color: theme.strikethroughColor) }
         if style.isUnderline { text = text.underline() }
         switch style.baseline {
         case .normal: break
@@ -396,7 +392,7 @@ enum InlineTextRenderer {
     /// colour can be applied alongside the other inline traits.
     private static func highlightedText(_ string: String, _ style: InlineStyle, theme: MarkdownTheme) -> SwiftUI.Text {
         var attributed = AttributedString(string)
-        attributed.backgroundColor = highlightColor
+        attributed.backgroundColor = theme.highlightColor
 
         var intent: InlinePresentationIntent = []
         if style.isBold { intent.insert(.stronglyEmphasized) }

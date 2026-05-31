@@ -287,7 +287,12 @@ struct MarkdownRenderer: View {
         } else if let table = markup as? Markdown.Table {
             return AnyView(renderTable(table))
         } else if markup is ThematicBreak {
-            return AnyView(Divider().padding(.vertical, 8))
+            return AnyView(
+                Rectangle()
+                    .fill(theme.thematicBreakColor)
+                    .frame(height: 1)
+                    .padding(.vertical, 8)
+            )
         } else if let htmlBlock = markup as? HTMLBlock {
             return AnyView(
                 SwiftUI.Text(htmlBlock.rawHTML)
@@ -442,7 +447,7 @@ struct MarkdownRenderer: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: item.checkbox?.isChecked == true ? "checkmark.square.fill" : "square")
                 .font(theme.bodyFont)
-                .foregroundColor(item.checkbox?.isChecked == true ? theme.linkColor : theme.secondaryTextColor)
+                .foregroundColor(item.checkbox?.isChecked == true ? theme.taskCheckboxColor : theme.secondaryTextColor)
                 .frame(width: 20, alignment: .trailing)
 
             VStack(alignment: .leading, spacing: theme.listItemSpacing) {
@@ -503,7 +508,7 @@ struct MarkdownRenderer: View {
                     .font(isHeader ? theme.bodyFont.bold() : theme.bodyFont)
                     .foregroundColor(theme.textColor)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(8)
+                    .padding(theme.tableCellPadding)
                     .background(isHeader ? theme.tableHeaderBackgroundColor : Color.clear)
 
                 if index < cells.count - 1 {

@@ -47,30 +47,24 @@ struct HighlightedCodeView: View {
                 .font(theme.codeBlockFont)
         } else {
             tokens.reduce(SwiftUI.Text("")) { result, token in
-                result + SwiftUI.Text(token.text)
-                    .foregroundColor(color(for: token.type))
+                result + styledText(for: token)
             }
             .font(theme.codeBlockFont)
         }
     }
 
-    private func color(for tokenType: TokenType) -> Color {
-        switch tokenType {
-        case .keyword:
-            return theme.syntaxColors.keyword
-        case .string:
-            return theme.syntaxColors.string
-        case .comment:
-            return theme.syntaxColors.comment
-        case .number:
-            return theme.syntaxColors.number
-        case .type:
-            return theme.syntaxColors.type
-        case .function:
-            return theme.syntaxColors.function
-        case .plain:
-            return theme.syntaxColors.plain
+    /// Builds a `Text` for a token applying its full ``TokenStyle`` (color plus
+    /// bold / italic / underline), so monochrome and typographic themes work.
+    private func styledText(for token: Token) -> SwiftUI.Text {
+        let style = theme.tokenStyle(for: token.type)
+        var text = SwiftUI.Text(token.text)
+        if let color = style.color {
+            text = text.foregroundColor(color)
         }
+        if style.isBold { text = text.bold() }
+        if style.isItalic { text = text.italic() }
+        if style.isUnderlined { text = text.underline() }
+        return text
     }
 
     /// Splits tokens into lines, preserving token structure.

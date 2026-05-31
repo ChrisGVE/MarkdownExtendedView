@@ -41,7 +41,7 @@ struct TappableLinkView: View {
     var body: some View {
         linkText
             .foregroundColor(theme.linkColor)
-            .underline()
+            .underline(theme.linkUnderline)
             .onTapGesture {
                 handleTap()
             }

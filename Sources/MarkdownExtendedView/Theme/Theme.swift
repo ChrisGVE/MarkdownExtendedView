@@ -78,6 +78,117 @@ public struct SyntaxColors: Sendable {
         function: Color(red: 0.42, green: 0.22, blue: 0.6),               // #6f42c1
         plain: Color(red: 0.14, green: 0.16, blue: 0.18)                  // #24292e
     )
+
+    /// Returns the color for a given token type.
+    public func color(for tokenType: TokenType) -> Color {
+        switch tokenType {
+        case .keyword: return keyword
+        case .string: return string
+        case .comment: return comment
+        case .number: return number
+        case .type: return type
+        case .function: return function
+        case .plain: return plain
+        }
+    }
+}
+
+// MARK: - Token Style
+
+/// The full visual style for a syntax token: an optional color plus font traits.
+///
+/// Unlike ``SyntaxColors`` (which maps each token type to a color only), a
+/// `TokenStyle` can convey syntax through bold / italic / underline and a
+/// relative size. This enables monochrome and typographic themes that don't
+/// rely on color (see the theme gallery). A `nil` color inherits the surrounding
+/// code color, so a style can add emphasis without changing the hue.
+public struct TokenStyle: Sendable, Equatable {
+
+    /// The token color, or `nil` to inherit the base code color.
+    public var color: Color?
+    /// Whether the token is bold.
+    public var isBold: Bool
+    /// Whether the token is italic.
+    public var isItalic: Bool
+    /// Whether the token is underlined.
+    public var isUnderlined: Bool
+    /// Relative size multiplier applied to the code font (1.0 = unchanged).
+    public var sizeScale: CGFloat
+
+    public init(
+        color: Color? = nil,
+        isBold: Bool = false,
+        isItalic: Bool = false,
+        isUnderlined: Bool = false,
+        sizeScale: CGFloat = 1.0
+    ) {
+        self.color = color
+        self.isBold = isBold
+        self.isItalic = isItalic
+        self.isUnderlined = isUnderlined
+        self.sizeScale = sizeScale
+    }
+
+    /// A plain style that inherits color and applies no traits.
+    public static let plain = TokenStyle()
+}
+
+/// A per-token-type mapping of ``TokenStyle``, used by themes that need font
+/// traits in addition to (or instead of) color.
+public struct TokenStyles: Sendable, Equatable {
+
+    public var keyword: TokenStyle
+    public var string: TokenStyle
+    public var comment: TokenStyle
+    public var number: TokenStyle
+    public var type: TokenStyle
+    public var function: TokenStyle
+    public var plain: TokenStyle
+
+    public init(
+        keyword: TokenStyle = .plain,
+        string: TokenStyle = .plain,
+        comment: TokenStyle = .plain,
+        number: TokenStyle = .plain,
+        type: TokenStyle = .plain,
+        function: TokenStyle = .plain,
+        plain: TokenStyle = .plain
+    ) {
+        self.keyword = keyword
+        self.string = string
+        self.comment = comment
+        self.number = number
+        self.type = type
+        self.function = function
+        self.plain = plain
+    }
+
+    /// Builds a color-only mapping from a ``SyntaxColors`` palette, so existing
+    /// color themes work unchanged.
+    public init(colors: SyntaxColors) {
+        self.init(
+            keyword: TokenStyle(color: colors.keyword),
+            string: TokenStyle(color: colors.string),
+            comment: TokenStyle(color: colors.comment),
+            number: TokenStyle(color: colors.number),
+            type: TokenStyle(color: colors.type),
+            function: TokenStyle(color: colors.function),
+            plain: TokenStyle(color: colors.plain)
+        )
+    }
+
+    /// Returns the style for a given token type.
+    public func style(for tokenType: TokenType) -> TokenStyle {
+        switch tokenType {
+        case .keyword: return keyword
+        case .string: return string
+        case .comment: return comment
+        case .number: return number
+        case .type: return type
+        case .function: return function
+        case .plain: return plain
+        }
+    }
 }
 
 // MARK: - Theme
@@ -171,6 +282,26 @@ public struct MarkdownTheme: Sendable {
     /// Syntax highlighting colors for code blocks.
     public var syntaxColors: SyntaxColors
 
+    /// Optional per-token font-trait styling. When set it takes precedence over
+    /// ``syntaxColors`` and enables monochrome / typographic themes. When `nil`,
+    /// token styling is derived from ``syntaxColors`` (color only).
+    public var tokenStyles: TokenStyles?
+
+    // MARK: - Additional Themeable Elements
+
+    /// Color for strikethrough text. `nil` inherits ``textColor``.
+    public var strikethroughColor: Color?
+    /// Color for thematic breaks (horizontal rules).
+    public var thematicBreakColor: Color
+    /// Tint for checked task-list checkboxes.
+    public var taskCheckboxColor: Color
+    /// Background color for `<mark>` highlighted text.
+    public var highlightColor: Color
+    /// Whether links are underlined.
+    public var linkUnderline: Bool
+    /// Padding inside table cells.
+    public var tableCellPadding: CGFloat
+
     // MARK: - Spacing
 
     /// Spacing between paragraphs.
@@ -197,11 +328,18 @@ public struct MarkdownTheme: Sendable {
         textColor: Color = .primary,
         secondaryTextColor: Color = .secondary,
         linkColor: Color = .accentColor,
-        codeBackgroundColor: Color = Color(white: 0.95),
-        blockQuoteBorderColor: Color = Color(white: 0.75),
-        tableBorderColor: Color = Color(white: 0.80),
-        tableHeaderBackgroundColor: Color = Color(white: 0.90),
+        codeBackgroundColor: Color = Color(light: Color(white: 0.95), dark: Color(white: 0.16)),
+        blockQuoteBorderColor: Color = Color(light: Color(white: 0.75), dark: Color(white: 0.4)),
+        tableBorderColor: Color = Color(light: Color(white: 0.80), dark: Color(white: 0.35)),
+        tableHeaderBackgroundColor: Color = Color(light: Color(white: 0.90), dark: Color(white: 0.22)),
         syntaxColors: SyntaxColors = .default,
+        tokenStyles: TokenStyles? = nil,
+        strikethroughColor: Color? = nil,
+        thematicBreakColor: Color = Color(light: Color(white: 0.80), dark: Color(white: 0.35)),
+        taskCheckboxColor: Color = .accentColor,
+        highlightColor: Color = Color.yellow.opacity(0.35),
+        linkUnderline: Bool = true,
+        tableCellPadding: CGFloat = 8,
         paragraphSpacing: CGFloat = 12,
         listItemSpacing: CGFloat = 4,
         indentation: CGFloat = 20,
@@ -224,10 +362,23 @@ public struct MarkdownTheme: Sendable {
         self.tableBorderColor = tableBorderColor
         self.tableHeaderBackgroundColor = tableHeaderBackgroundColor
         self.syntaxColors = syntaxColors
+        self.tokenStyles = tokenStyles
+        self.strikethroughColor = strikethroughColor
+        self.thematicBreakColor = thematicBreakColor
+        self.taskCheckboxColor = taskCheckboxColor
+        self.highlightColor = highlightColor
+        self.linkUnderline = linkUnderline
+        self.tableCellPadding = tableCellPadding
         self.paragraphSpacing = paragraphSpacing
         self.listItemSpacing = listItemSpacing
         self.indentation = indentation
         self.codeBlockPadding = codeBlockPadding
+    }
+
+    /// Returns the effective ``TokenStyle`` for a token type, falling back to a
+    /// color-only style derived from ``syntaxColors`` when ``tokenStyles`` is nil.
+    public func tokenStyle(for tokenType: TokenType) -> TokenStyle {
+        tokenStyles?.style(for: tokenType) ?? TokenStyle(color: syntaxColors.color(for: tokenType))
     }
 
     /// Returns the font for the specified heading level.
@@ -270,8 +421,8 @@ public extension MarkdownTheme {
         heading6Font: .system(size: 13, weight: .bold),
         codeFont: .system(size: 14, design: .monospaced),
         codeBlockFont: .system(size: 13, design: .monospaced),
-        linkColor: Color(red: 0.0, green: 0.4, blue: 0.8),
-        codeBackgroundColor: Color(red: 0.96, green: 0.97, blue: 0.98),
+        linkColor: Color(light: Color(hex: "#0366d6"), dark: Color(hex: "#58a6ff")),
+        codeBackgroundColor: Color(light: Color(hex: "#f6f8fa"), dark: Color(hex: "#161b22")),
         syntaxColors: .gitHub,
         paragraphSpacing: 16,
         listItemSpacing: 4,
