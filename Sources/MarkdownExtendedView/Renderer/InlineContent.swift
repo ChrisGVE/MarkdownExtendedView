@@ -15,18 +15,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
+import Foundation
 import SwiftUI
 import Markdown
 
 /// Visual style carried by an inline text run.
 ///
 /// Styles accumulate as the flattener descends through nested markup, so a run
-/// inside `**_bold italic_**` carries both `isBold` and `isItalic`.
+/// inside `**_bold italic_**` carries both `isBold` and `isItalic`. The
+/// underline / highlight / baseline fields additionally carry the supported
+/// inline-HTML subset (`<u>`, `<mark>`, `<sub>`, `<sup>`, …).
 struct InlineStyle: Equatable {
     var isBold: Bool = false
     var isItalic: Bool = false
     var isStrikethrough: Bool = false
     var isCode: Bool = false
+    var isUnderline: Bool = false
+    var isHighlight: Bool = false
+    var baseline: Baseline = .normal
+
+    /// Vertical baseline shift for `<sub>` / `<sup>`.
+    enum Baseline: Equatable {
+        case normal
+        case sub
+        case sup
+    }
 }
 
 /// A flattened, render-ready piece of inline content.
@@ -64,10 +77,107 @@ enum InlineFlattener {
     /// Produces the flattened fragments for the inline children of `parent`.
     static func fragments(for parent: any Markup) -> [InlineFragment] {
         var pieces: [RawPiece] = []
-        for child in parent.children {
-            flatten(child, style: InlineStyle(), into: &pieces)
-        }
+        flattenSequence(Array(parent.children), baseStyle: InlineStyle(), into: &pieces)
         return resolveMath(pieces)
+    }
+
+    // MARK: Inline HTML
+
+    /// A formatting effect contributed by a supported inline-HTML tag.
+    private enum HTMLEffect: Equatable {
+        case bold, italic, underline, strikethrough, code, highlight, sub, sup
+    }
+
+    /// Walks a sibling sequence, threading an inline-HTML tag stack so paired
+    /// tags (`<b>`…`</b>`) style the text between them. Tags are flat siblings
+    /// of the text they wrap in swift-markdown, not parents.
+    private static func flattenSequence(_ markups: [any Markup], baseStyle: InlineStyle, into pieces: inout [RawPiece]) {
+        var stack: [HTMLEffect] = []
+        for markup in markups {
+            if let inlineHTML = markup as? InlineHTML {
+                applyInlineHTMLTag(inlineHTML.rawHTML, stack: &stack, into: &pieces)
+            } else {
+                flatten(markup, style: style(baseStyle, applying: stack), into: &pieces)
+            }
+        }
+    }
+
+    /// Folds the active inline-HTML effects onto a base style.
+    private static func style(_ base: InlineStyle, applying stack: [HTMLEffect]) -> InlineStyle {
+        var style = base
+        for effect in stack {
+            switch effect {
+            case .bold: style.isBold = true
+            case .italic: style.isItalic = true
+            case .underline: style.isUnderline = true
+            case .strikethrough: style.isStrikethrough = true
+            case .code: style.isCode = true
+            case .highlight: style.isHighlight = true
+            case .sub: style.baseline = .sub
+            case .sup: style.baseline = .sup
+            }
+        }
+        return style
+    }
+
+    /// Interprets a single inline-HTML tag. Recognised formatting tags push/pop
+    /// the effect stack, `<br>` emits a line break, and unknown or unsafe tags
+    /// (`<script>`, `<span>`, …) are dropped — their text content still renders
+    /// unstyled, and nothing is ever executed (output is native SwiftUI text).
+    private static func applyInlineHTMLTag(_ rawHTML: String, stack: inout [HTMLEffect], into pieces: inout [RawPiece]) {
+        guard let tag = parseTag(rawHTML) else { return }
+
+        if tag.name == "br" {
+            pieces.append(.lineBreak)
+            return
+        }
+        if tag.name == "wbr" { return }
+
+        guard let effect = effect(for: tag.name) else { return }
+
+        if tag.isClosing {
+            if let index = stack.lastIndex(of: effect) { stack.remove(at: index) }
+        } else if !tag.isSelfClosing {
+            stack.append(effect)
+        }
+    }
+
+    /// Maps a tag name to its formatting effect, or `nil` if unsupported.
+    private static func effect(for name: String) -> HTMLEffect? {
+        switch name {
+        case "b", "strong": return .bold
+        case "i", "em": return .italic
+        case "u", "ins": return .underline
+        case "s", "strike", "del": return .strikethrough
+        case "code", "kbd", "samp", "tt": return .code
+        case "mark": return .highlight
+        case "sub": return .sub
+        case "sup": return .sup
+        default: return nil
+        }
+    }
+
+    /// Parses a tag token into its lowercased name and open/close/self-close form.
+    private static func parseTag(_ rawHTML: String) -> (name: String, isClosing: Bool, isSelfClosing: Bool)? {
+        var inner = rawHTML.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard inner.hasPrefix("<"), inner.hasSuffix(">") else { return nil }
+        inner = String(inner.dropFirst().dropLast())
+
+        var isClosing = false
+        if inner.hasPrefix("/") {
+            isClosing = true
+            inner = String(inner.dropFirst())
+        }
+
+        var isSelfClosing = false
+        if inner.hasSuffix("/") {
+            isSelfClosing = true
+            inner = String(inner.dropLast())
+        }
+
+        let name = inner.prefix { $0.isLetter || $0.isNumber }.lowercased()
+        guard !name.isEmpty else { return nil }
+        return (name, isClosing, isSelfClosing)
     }
 
     // MARK: Intermediate representation
@@ -93,17 +203,17 @@ enum InlineFlattener {
         case let strong as Strong:
             var inner = style
             inner.isBold = true
-            for child in strong.children { flatten(child, style: inner, into: &pieces) }
+            flattenSequence(Array(strong.children), baseStyle: inner, into: &pieces)
 
         case let emphasis as Emphasis:
             var inner = style
             inner.isItalic = true
-            for child in emphasis.children { flatten(child, style: inner, into: &pieces) }
+            flattenSequence(Array(emphasis.children), baseStyle: inner, into: &pieces)
 
         case let strikethrough as Strikethrough:
             var inner = style
             inner.isStrikethrough = true
-            for child in strikethrough.children { flatten(child, style: inner, into: &pieces) }
+            flattenSequence(Array(strikethrough.children), baseStyle: inner, into: &pieces)
 
         case let code as InlineCode:
             var inner = style
@@ -114,7 +224,7 @@ enum InlineFlattener {
             // Resolve the link's own children independently so the link is a
             // single, self-contained flow item.
             var childPieces: [RawPiece] = []
-            for child in link.children { flatten(child, style: style, into: &childPieces) }
+            flattenSequence(Array(link.children), baseStyle: style, into: &childPieces)
             pieces.append(.link(destination: link.destination, content: resolveMath(childPieces)))
 
         case let image as Markdown.Image:
@@ -129,7 +239,7 @@ enum InlineFlattener {
         default:
             // Unknown inline container: descend preserving the current style.
             if markup.childCount > 0 {
-                for child in markup.children { flatten(child, style: style, into: &pieces) }
+                flattenSequence(Array(markup.children), baseStyle: style, into: &pieces)
             } else if let plain = markup as? any PlainTextConvertibleMarkup {
                 pieces.append(.text(plain.plainText, style))
             }
@@ -247,14 +357,47 @@ enum InlineTextRenderer {
         }
     }
 
+    /// Approximate background colour for `<mark>` highlighting until it becomes a
+    /// themeable element (see task 13).
+    private static let highlightColor = Color.yellow.opacity(0.35)
+
     /// Applies an ``InlineStyle`` to a string. Font and colour for plain runs are
     /// inherited from the surrounding context; only code runs override the font.
     static func styled(_ string: String, _ style: InlineStyle, theme: MarkdownTheme) -> SwiftUI.Text {
+        // `<mark>` needs a per-run background, which Text modifiers cannot express
+        // through concatenation, so build that run from an AttributedString.
+        if style.isHighlight {
+            return highlightedText(string, style, theme: theme)
+        }
+
         var text = SwiftUI.Text(string)
         if style.isCode { text = text.font(theme.codeFont) }
         if style.isBold { text = text.bold() }
         if style.isItalic { text = text.italic() }
         if style.isStrikethrough { text = text.strikethrough() }
+        if style.isUnderline { text = text.underline() }
+        switch style.baseline {
+        case .normal: break
+        case .sub: text = text.baselineOffset(-3)
+        case .sup: text = text.baselineOffset(5)
+        }
         return text
+    }
+
+    /// Builds a highlighted (`<mark>`) run via AttributedString so a background
+    /// colour can be applied alongside the other inline traits.
+    private static func highlightedText(_ string: String, _ style: InlineStyle, theme: MarkdownTheme) -> SwiftUI.Text {
+        var attributed = AttributedString(string)
+        attributed.backgroundColor = highlightColor
+
+        var intent: InlinePresentationIntent = []
+        if style.isBold { intent.insert(.stronglyEmphasized) }
+        if style.isItalic { intent.insert(.emphasized) }
+        if style.isStrikethrough { intent.insert(.strikethrough) }
+        if !intent.isEmpty { attributed.inlinePresentationIntent = intent }
+        if style.isUnderline { attributed.underlineStyle = .single }
+        if style.isCode { attributed.font = theme.codeFont }
+
+        return SwiftUI.Text(attributed)
     }
 }

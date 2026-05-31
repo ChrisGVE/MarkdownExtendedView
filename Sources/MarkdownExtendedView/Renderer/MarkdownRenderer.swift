@@ -29,10 +29,110 @@ struct MarkdownRenderer: View {
     @Environment(\.markdownLinkHandler) private var linkHandler
 
     var body: some View {
+        let nodes = MarkdownRenderer.groupBlocks(Array(document.children))
         VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
-            ForEach(Array(document.children.enumerated()), id: \.offset) { _, child in
-                renderBlock(child)
+            ForEach(Array(nodes.enumerated()), id: \.offset) { _, node in
+                renderBlockNode(node)
             }
+        }
+    }
+
+    // MARK: - Block Grouping (HTML <details>)
+
+    /// A top-level render node: either a raw markup block or a `<details>`
+    /// disclosure group folded from a run of blocks.
+    enum BlockNode {
+        case markup(any Markup)
+        case details(summary: String, body: [BlockNode])
+    }
+
+    /// Folds `<details>` … `</details>` HTML-block runs into disclosure nodes.
+    ///
+    /// swift-markdown emits `<details>`/`<summary>` and the closing `</details>`
+    /// as separate `HTMLBlock` siblings around the (normally parsed) body blocks.
+    /// This pass groups the body between matched markers, tracking nesting depth,
+    /// and extracts the summary label. Unmatched or malformed markers fall back to
+    /// rendering the blocks as-is.
+    static func groupBlocks(_ blocks: [any Markup]) -> [BlockNode] {
+        var nodes: [BlockNode] = []
+        var index = 0
+
+        while index < blocks.count {
+            let block = blocks[index]
+            if let html = block as? HTMLBlock, isDetailsOpen(html.rawHTML) {
+                // Find the matching close, honouring nested <details>.
+                var depth = 1
+                var cursor = index + 1
+                while cursor < blocks.count && depth > 0 {
+                    if let inner = blocks[cursor] as? HTMLBlock {
+                        if isDetailsOpen(inner.rawHTML) { depth += 1 }
+                        else if isDetailsClose(inner.rawHTML) { depth -= 1 }
+                    }
+                    if depth == 0 { break }
+                    cursor += 1
+                }
+
+                if depth == 0 {
+                    let bodyBlocks = Array(blocks[(index + 1)..<cursor])
+                    nodes.append(.details(summary: extractSummary(html.rawHTML), body: groupBlocks(bodyBlocks)))
+                    index = cursor + 1
+                    continue
+                }
+                // No matching close: fall through and render as a normal block.
+            }
+            nodes.append(.markup(block))
+            index += 1
+        }
+
+        return nodes
+    }
+
+    private static func isDetailsOpen(_ rawHTML: String) -> Bool {
+        rawHTML.range(of: "<details", options: .caseInsensitive) != nil
+    }
+
+    private static func isDetailsClose(_ rawHTML: String) -> Bool {
+        rawHTML.range(of: "</details", options: .caseInsensitive) != nil
+            && rawHTML.range(of: "<details", options: .caseInsensitive) == nil
+    }
+
+    /// Extracts the plain-text summary label from a `<details>` open block.
+    static func extractSummary(_ rawHTML: String) -> String {
+        guard let open = rawHTML.range(of: "<summary>", options: .caseInsensitive),
+              let close = rawHTML.range(of: "</summary>", options: .caseInsensitive),
+              open.upperBound <= close.lowerBound else {
+            return "Details"
+        }
+        let inner = String(rawHTML[open.upperBound..<close.lowerBound])
+        let stripped = stripTags(inner).trimmingCharacters(in: .whitespacesAndNewlines)
+        return stripped.isEmpty ? "Details" : stripped
+    }
+
+    /// Removes any `<...>` tags from a string.
+    private static func stripTags(_ string: String) -> String {
+        string.replacingOccurrences(of: "<[^>]+>", with: "", options: .regularExpression)
+    }
+
+    private func renderBlockNode(_ node: BlockNode) -> AnyView {
+        switch node {
+        case .markup(let markup):
+            return renderBlock(markup)
+        case .details(let summary, let body):
+            return AnyView(
+                DisclosureGroup {
+                    VStack(alignment: .leading, spacing: theme.paragraphSpacing) {
+                        ForEach(Array(body.enumerated()), id: \.offset) { _, child in
+                            renderBlockNode(child)
+                        }
+                    }
+                    .padding(.top, 4)
+                } label: {
+                    SwiftUI.Text(summary)
+                        .font(theme.bodyFont.bold())
+                        .foregroundColor(theme.textColor)
+                }
+                .accentColor(theme.linkColor)
+            )
         }
     }
 

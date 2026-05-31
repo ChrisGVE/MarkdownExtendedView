@@ -289,11 +289,23 @@ Current limitations that may be addressed in future versions:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| HTML blocks | Partial | Raw HTML is not rendered |
-| Definition lists | Not supported | Not part of GFM |
+| Arbitrary raw HTML | Partial | Only a safe subset is rendered (see below) |
 
 Reference-style links (`[text][ref]`, `[ref][]`, and shortcut `[ref]` with a
 `[ref]: url` definition) are fully supported.
+
+### Inline HTML
+
+A safe subset of inline HTML is mapped to native formatting (everything renders
+as native SwiftUI text — no WebView, so no HTML/JS is ever executed):
+
+`<b>`/`<strong>`, `<i>`/`<em>`, `<u>`/`<ins>`, `<s>`/`<strike>`/`<del>`,
+`<code>`/`<kbd>`/`<samp>`, `<mark>`, `<sub>`, `<sup>`, and `<br>`. HTML entities
+(e.g. `&copy;`) are decoded by the parser. Unknown or unsafe tags (`<script>`,
+`<span>`, …) are dropped, leaving their text content rendered unstyled.
+
+`<details>`/`<summary>` blocks render as a native collapsible disclosure group
+with the enclosed Markdown as the body.
 
 ## Requirements
 
