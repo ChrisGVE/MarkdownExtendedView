@@ -19,6 +19,9 @@ jobs:
       - name: Swift Version
         run: swift --version
 
+      - name: WebKit guard
+        run: ./scripts/webkit-guard.sh
+
       - name: Build
         run: swift build
 
