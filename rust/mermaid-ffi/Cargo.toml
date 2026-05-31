@@ -1,0 +1,18 @@
+[package]
+name = "mermaid-ffi"
+version = "0.1.0"
+edition = "2021"
+description = "C-ABI FFI wrapper around mermaid-rs-renderer for the MarkdownExtendedView native renderer"
+license = "MIT"
+publish = false
+
+[lib]
+# staticlib: the artifact linked into the xcframework (Phases 4/5).
+# rlib: lets the crate's own unit/integration tests run on the host.
+crate-type = ["staticlib", "rlib"]
+
+[dependencies]
+# Path dependency on the pinned fork submodule. The fork's `cli`/`clap` feature
+# is dropped (default-features = false); `png` stays enabled for the dual-format
+# render path (PRD D1).
+mermaid-rs-renderer = { path = "../mermaid-rs-renderer", default-features = false, features = ["png"] }
