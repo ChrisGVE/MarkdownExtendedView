@@ -86,23 +86,39 @@ struct TappableLinkView: View {
         return nil
     }
 
+    /// Schemes the default tap handler will open. Untrusted markdown can carry
+    /// `javascript:`, `file:`, `data:`, or arbitrary custom-scheme links; the
+    /// default behaviour only follows safe navigation/communication schemes.
+    /// Integrators wanting other schemes supply an explicit `linkHandler`.
+    static let openableSchemes: Set<String> = ["http", "https", "mailto", "tel"]
+
+    /// Whether the default tap handler will open `url` (safe scheme allowlist).
+    static func isOpenableScheme(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased() else { return false }
+        return openableSchemes.contains(scheme)
+    }
+
     /// Handles the tap gesture on the link.
     private func handleTap() {
         guard let url = resolvedURL else { return }
 
-        // If custom handler is provided, use it
+        // If a custom handler is provided, the integrator owns the trust
+        // decision — pass the URL through untouched.
         if let handler = linkHandler {
             handler(url)
             return
         }
 
-        // Default behavior differs by platform
+        // Default behaviour: only follow safe schemes from (possibly untrusted)
+        // markdown. Everything else is silently ignored.
+        guard Self.isOpenableScheme(url) else { return }
+
         #if canImport(UIKit)
         // On iOS, show in-app browser for http/https URLs
-        if url.scheme == "http" || url.scheme == "https" {
+        if url.scheme?.lowercased() == "http" || url.scheme?.lowercased() == "https" {
             showingSafari = true
         } else {
-            // For other schemes (mailto:, tel:, etc.), use system handler
+            // For other allowed schemes (mailto:, tel:), use system handler
             Task { @MainActor in
                 LinkOpener.openInBrowser(url)
             }

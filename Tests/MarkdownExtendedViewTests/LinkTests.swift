@@ -264,4 +264,22 @@ final class LinkTests: XCTestCase {
         XCTAssertTrue(destinations.contains("https://google.com"))
         XCTAssertTrue(destinations.contains("https://apple.com"))
     }
+
+    // MARK: - Default-handler scheme allowlist (untrusted-markdown hardening)
+
+    func testSafeSchemesAreOpenable() {
+        for raw in ["https://example.com", "http://example.com", "mailto:a@b.com", "tel:+15551234"] {
+            let url = URL(string: raw)!
+            XCTAssertTrue(TappableLinkView.isOpenableScheme(url), "\(raw) should be openable")
+        }
+    }
+
+    func testDangerousSchemesAreNotOpenable() {
+        for raw in ["javascript:alert(1)", "file:///etc/passwd", "data:text/html,x",
+                    "shortcuts://run", "x-custom://payload"] {
+            let url = URL(string: raw)!
+            XCTAssertFalse(TappableLinkView.isOpenableScheme(url),
+                           "\(raw) must not be opened by the default handler")
+        }
+    }
 }
