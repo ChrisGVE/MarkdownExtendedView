@@ -23,7 +23,11 @@ import UIKit
 import AppKit
 #endif
 
-public extension Color {
+// Internal, not public: extending a type the package does not own (`Color`)
+// with `init(hex:)` would collide with the same extension integrators almost
+// always already have. Public hex-based theming is exposed through the Codable
+// `ThemeColor` type instead.
+extension Color {
 
     /// Creates a color from a hexadecimal string.
     ///
@@ -81,6 +85,9 @@ public extension Color {
     /// - Parameters:
     ///   - light: The color used in light appearance.
     ///   - dark: The color used in dark appearance.
+    // `@usableFromInline` so it can appear in the default-argument values of the
+    // public `MarkdownTheme.init` while the symbol itself stays non-public.
+    @usableFromInline
     init(light: Color, dark: Color) {
         #if canImport(UIKit)
         self.init(uiColor: UIColor { traits in
