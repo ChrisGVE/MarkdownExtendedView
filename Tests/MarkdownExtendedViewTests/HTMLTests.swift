@@ -181,4 +181,41 @@ final class HTMLTests: XCTestCase {
             return false
         })
     }
+
+    // MARK: - Tag-boundary / attribute robustness
+
+    func testSummaryWithAttributesExtracted() {
+        // `<summary>` carrying attributes must still yield its label, not the
+        // hardcoded "Details" fallback.
+        let html = "<details>\n<summary class=\"toggle\" id=\"s1\">Open me</summary>\nbody\n</details>"
+        XCTAssertEqual(MarkdownRenderer.extractSummary(html), "Open me")
+    }
+
+    func testSummaryWithAttributesGroups() {
+        let markdown = "<details open>\n<summary class=\"t\">Titled</summary>\n\nHidden.\n\n</details>"
+        let document = Document(parsing: markdown)
+        let nodes = MarkdownRenderer.groupBlocks(Array(document.children))
+        guard case .details(let summary, _)? = nodes.first else {
+            return XCTFail("Expected a details node, got \(nodes)")
+        }
+        XCTAssertEqual(summary, "Titled")
+    }
+
+    func testSummaryLikeTagNotMatched() {
+        // `<summaryx>` is a different element and must not be parsed as summary.
+        let html = "<details>\n<summaryx>Nope</summaryx>\nbody\n</details>"
+        XCTAssertEqual(MarkdownRenderer.extractSummary(html), "Details")
+    }
+
+    func testDetailsLikeTagNotGrouped() {
+        // A custom `<detailspanel>` element must not be treated as `<details>`,
+        // which would otherwise swallow blocks up to a later real `</details>`.
+        let markdown = "<detailspanel>\nkeep\n</detailspanel>"
+        let document = Document(parsing: markdown)
+        let nodes = MarkdownRenderer.groupBlocks(Array(document.children))
+        XCTAssertFalse(nodes.contains { node in
+            if case .details = node { return true }
+            return false
+        }, "<detailspanel> must not be grouped as a disclosure")
+    }
 }

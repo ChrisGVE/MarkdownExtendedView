@@ -148,13 +148,21 @@ struct MarkdownRenderer: View {
         return lines
     }
 
+    /// Whether `rawHTML` contains the named tag with a real tag boundary after
+    /// the name (so `<details>` matches but `<detailspanel>` does not).
+    private static func containsTag(_ rawHTML: String, name: String, closing: Bool) -> Bool {
+        let prefix = closing ? "</" : "<"
+        let pattern = "\(prefix)\(name)(?=[ \\t\\r\\n/>])"
+        return rawHTML.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
+    }
+
     private static func isDetailsOpen(_ rawHTML: String) -> Bool {
-        rawHTML.range(of: "<details", options: .caseInsensitive) != nil
+        containsTag(rawHTML, name: "details", closing: false)
     }
 
     private static func isDetailsClose(_ rawHTML: String) -> Bool {
-        rawHTML.range(of: "</details", options: .caseInsensitive) != nil
-            && rawHTML.range(of: "<details", options: .caseInsensitive) == nil
+        containsTag(rawHTML, name: "details", closing: true)
+            && !containsTag(rawHTML, name: "details", closing: false)
     }
 
     /// Extracts the inner body of a self-contained `<details>…</details>` block:
@@ -179,7 +187,9 @@ struct MarkdownRenderer: View {
 
     /// Extracts the plain-text summary label from a `<details>` open block.
     static func extractSummary(_ rawHTML: String) -> String {
-        guard let open = rawHTML.range(of: "<summary>", options: .caseInsensitive),
+        // Match `<summary>` or `<summary …attrs…>` (boundary-aware, so
+        // `<summaryx>` does not match and attributes are not treated as text).
+        guard let open = rawHTML.range(of: "<summary(\\s[^>]*)?>", options: [.regularExpression, .caseInsensitive]),
               let close = rawHTML.range(of: "</summary>", options: .caseInsensitive),
               open.upperBound <= close.lowerBound else {
             return "Details"
@@ -354,17 +364,30 @@ struct MarkdownRenderer: View {
 
     @ViewBuilder
     private func renderParagraph(_ paragraph: Paragraph) -> some View {
-        // Check if this paragraph contains only a display LaTeX block
-        let plainText = paragraph.plainText
-        if plainText.hasPrefix("$$") && plainText.hasSuffix("$$") {
-            // This is a display LaTeX block
-            let latex = String(plainText.dropFirst(2).dropLast(2)).trimmingCharacters(in: .whitespacesAndNewlines)
+        // Fast path only for a paragraph that is a *single* self-contained
+        // display-math block. Paragraphs mixing display math with text or
+        // containing multiple `$$…$$` blocks fall through to the inline path,
+        // which segments math correctly (the fast path would otherwise corrupt
+        // e.g. `$$x$$ and $$y$$` into invalid LaTeX).
+        if let latex = Self.displayMathContent(paragraph.plainText) {
             LaTeXView(latex: latex, isBlock: true, theme: theme)
         } else {
             renderInlineChildren(paragraph)
                 .font(theme.bodyFont)
                 .foregroundColor(theme.textColor)
         }
+    }
+
+    /// If `plainText` is a single self-contained display-math block (`$$…$$`
+    /// with no interior `$$`), returns the inner LaTeX; otherwise `nil` so the
+    /// caller falls back to inline rendering (which handles mixed/multiple math).
+    static func displayMathContent(_ plainText: String) -> String? {
+        guard plainText.hasPrefix("$$"), plainText.hasSuffix("$$"), plainText.count > 4 else {
+            return nil
+        }
+        let inner = plainText.dropFirst(2).dropLast(2)
+        guard !inner.contains("$$") else { return nil }
+        return inner.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     // MARK: - Code Block

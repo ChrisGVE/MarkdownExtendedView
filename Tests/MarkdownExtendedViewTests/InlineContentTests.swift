@@ -169,4 +169,26 @@ final class InlineContentTests: XCTestCase {
         XCTAssertTrue(textFragments(result).contains { $0.1.isBold && $0.1.isItalic },
                       "Nested strong+emphasis should carry both traits")
     }
+
+    // MARK: - Display-math paragraph fast path
+
+    func testSingleDisplayMathRecognised() {
+        XCTAssertEqual(MarkdownRenderer.displayMathContent("$$E = mc^2$$"), "E = mc^2")
+    }
+
+    func testMultipleDisplayMathBlocksNotShortcut() {
+        // Two `$$…$$` blocks in one paragraph must NOT take the fast path
+        // (which would strip to invalid LaTeX `x$$ and $$y`).
+        XCTAssertNil(MarkdownRenderer.displayMathContent("$$x$$ and $$y$$"))
+    }
+
+    func testDisplayMathMixedWithTextNotShortcut() {
+        XCTAssertNil(MarkdownRenderer.displayMathContent("text $$x$$"))
+        XCTAssertNil(MarkdownRenderer.displayMathContent("$$x$$ text"))
+    }
+
+    func testEmptyDoubleDollarNotShortcut() {
+        XCTAssertNil(MarkdownRenderer.displayMathContent("$$$$"))
+        XCTAssertNil(MarkdownRenderer.displayMathContent("plain"))
+    }
 }
