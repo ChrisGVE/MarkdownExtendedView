@@ -665,12 +665,16 @@ struct FlowLayout: Layout {
     var spacing: CGFloat = 0
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let sizes = measuredSizes(proposal: proposal, subviews: subviews)
-        return Self.frames(forItemSizes: sizes, maxWidth: proposal.width ?? .infinity, spacing: spacing).totalSize
+        let maxWidth = proposal.width ?? .infinity
+        let sizes = measuredSizes(maxWidth: maxWidth, subviews: subviews)
+        return Self.frames(forItemSizes: sizes, maxWidth: maxWidth, spacing: spacing).totalSize
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        let sizes = measuredSizes(proposal: proposal, subviews: subviews)
+        // Measure against the actual container width so wrapping decisions and
+        // the sizes used for placement stay consistent (even when the parent
+        // proposed an unspecified width during sizing).
+        let sizes = measuredSizes(maxWidth: bounds.width, subviews: subviews)
         let result = Self.frames(forItemSizes: sizes, maxWidth: bounds.width, spacing: spacing)
 
         for (index, subview) in subviews.enumerated() where index < result.positions.count {
@@ -685,8 +689,7 @@ struct FlowLayout: Layout {
 
     /// Measures each subview, clamping over-wide subviews to the container width
     /// so they wrap their own content.
-    private func measuredSizes(proposal: ProposedViewSize, subviews: Subviews) -> [CGSize] {
-        let maxWidth = proposal.width ?? .infinity
+    private func measuredSizes(maxWidth: CGFloat, subviews: Subviews) -> [CGSize] {
         return subviews.map { subview in
             let ideal = subview.sizeThatFits(.unspecified)
             if maxWidth.isFinite && ideal.width > maxWidth {
