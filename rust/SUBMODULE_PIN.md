@@ -30,6 +30,26 @@ xcframework builds against the union:
 | `fix/panic-guards` | Panic hardening (`catch_unwind`, node-cap) | #37, #95 |
 | `fix/viewbox-sizing` | viewBox / intrinsic sizing | #83 |
 
+## Known issues at this pin
+
+Two fork test failures observed while establishing the MVP render proof
+(Task 3). Neither blocks the native-mermaid task chain or any MVP diagram path.
+
+1. **`layout::tests::dense_flowchart_keeps_mid_span_edge_reasonably_direct`** —
+   host-font-metrics artifact, **not a bug**. Green on the author's
+   `ubuntu-latest` CI, red only on macOS (`path/manhattan` ratio 2.89 > 2.5)
+   because `text_metrics::load_system_fonts()` resolves different metrics per
+   OS. To be eliminated by the deterministic embedded-font rework
+   ([[feat/embedded-font]] — Phase 2b); **re-verify it passes on macOS after
+   that lands.** No upstream action (author CI already green). (The fork has
+   GitHub issues disabled, so this is tracked here.)
+
+2. **`all_repository_fixtures_satisfy_layout_invariants`** — genuine,
+   environment-independent layout bug (red on Ubuntu CI **and** macOS):
+   `flowchart_opaque.mmd` edge `Baldr->Ke2` route overlaps its own center label
+   box. Filed upstream as **1jehuang/mermaid-rs-renderer#105** (related to #63).
+   Fix deferred — not on an MVP path; revisit only if it reaches one.
+
 ## How to advance the pin
 
 See `RELEASING.md` (§4.5.1 atomic protocol). In short: advance the submodule to
