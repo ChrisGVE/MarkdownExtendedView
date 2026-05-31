@@ -39,11 +39,13 @@ struct MarkdownRenderer: View {
 
     // MARK: - Block Grouping (HTML <details>)
 
-    /// A top-level render node: either a raw markup block or a `<details>`
-    /// disclosure group folded from a run of blocks.
+    /// A top-level render node: a raw markup block, a `<details>` disclosure
+    /// group, or a definition list folded from consecutive term/definition
+    /// paragraphs.
     enum BlockNode {
         case markup(any Markup)
         case details(summary: String, body: [BlockNode])
+        case definitionList([Paragraph])
     }
 
     /// Folds `<details>` … `</details>` HTML-block runs into disclosure nodes.
@@ -80,11 +82,55 @@ struct MarkdownRenderer: View {
                 }
                 // No matching close: fall through and render as a normal block.
             }
+
+            if let paragraph = block as? Paragraph, isDefinitionParagraph(paragraph) {
+                // Coalesce consecutive definition paragraphs into one list.
+                var items: [Paragraph] = [paragraph]
+                var cursor = index + 1
+                while cursor < blocks.count,
+                      let next = blocks[cursor] as? Paragraph,
+                      isDefinitionParagraph(next) {
+                    items.append(next)
+                    cursor += 1
+                }
+                nodes.append(.definitionList(items))
+                index = cursor
+                continue
+            }
+
             nodes.append(.markup(block))
             index += 1
         }
 
         return nodes
+    }
+
+    /// Whether a paragraph follows the definition-list shape: a term line
+    /// followed by one or more lines beginning with `:`.
+    static func isDefinitionParagraph(_ paragraph: Paragraph) -> Bool {
+        let lines = plainLines(of: paragraph)
+        guard lines.count >= 2,
+              let first = lines.first,
+              !first.trimmingCharacters(in: .whitespaces).hasPrefix(":") else {
+            return false
+        }
+        return lines.dropFirst().contains { $0.trimmingCharacters(in: .whitespaces).hasPrefix(":") }
+    }
+
+    /// The plain text of each line of a paragraph (split at soft/hard breaks).
+    private static func plainLines(of paragraph: Paragraph) -> [String] {
+        var lines: [String] = []
+        var current = ""
+        for child in paragraph.children {
+            if child is SoftBreak || child is LineBreak {
+                lines.append(current)
+                current = ""
+            } else if let plain = child as? any PlainTextConvertibleMarkup {
+                current += plain.plainText
+            }
+        }
+        lines.append(current)
+        return lines
     }
 
     private static func isDetailsOpen(_ rawHTML: String) -> Bool {
@@ -133,7 +179,79 @@ struct MarkdownRenderer: View {
                 }
                 .accentColor(theme.linkColor)
             )
+        case .definitionList(let paragraphs):
+            return AnyView(renderDefinitionList(paragraphs))
         }
+    }
+
+    // MARK: - Definition List Rendering
+
+    @ViewBuilder
+    private func renderDefinitionList(_ paragraphs: [Paragraph]) -> some View {
+        VStack(alignment: .leading, spacing: theme.listItemSpacing) {
+            ForEach(Array(paragraphs.enumerated()), id: \.offset) { _, paragraph in
+                let lines = inlineLines(of: paragraph)
+                ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
+                    renderDefinitionLine(line)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func renderDefinitionLine(_ line: [any Markup]) -> some View {
+        if isDefinitionLine(line) {
+            // Definition: drop the leading ":" marker and indent.
+            let fragments = Self.stripLeadingColon(InlineFlattener.fragments(forChildren: line))
+            renderInlineFragments(fragments)
+                .font(theme.bodyFont)
+                .foregroundColor(theme.textColor)
+                .padding(.leading, theme.indentation)
+        } else {
+            // Term: rendered in bold.
+            renderInlineFragments(InlineFlattener.fragments(forChildren: line))
+                .font(theme.bodyFont.bold())
+                .foregroundColor(theme.textColor)
+        }
+    }
+
+    /// Splits a paragraph's inline children into lines at soft/hard breaks.
+    private func inlineLines(of paragraph: Paragraph) -> [[any Markup]] {
+        var lines: [[any Markup]] = []
+        var current: [any Markup] = []
+        for child in paragraph.children {
+            if child is SoftBreak || child is LineBreak {
+                lines.append(current)
+                current = []
+            } else {
+                current.append(child)
+            }
+        }
+        lines.append(current)
+        return lines
+    }
+
+    /// Whether a line begins with the `:` definition marker.
+    private func isDefinitionLine(_ line: [any Markup]) -> Bool {
+        guard let first = line.first as? any PlainTextConvertibleMarkup else { return false }
+        return first.plainText.trimmingCharacters(in: .whitespaces).hasPrefix(":")
+    }
+
+    /// Removes the leading `:` (and surrounding whitespace) from the first text
+    /// fragment of a definition line.
+    static func stripLeadingColon(_ fragments: [InlineFragment]) -> [InlineFragment] {
+        var result = fragments
+        for index in result.indices {
+            if case .text(let string, let style) = result[index] {
+                var trimmed = string.drop { $0 == " " || $0 == "\t" }
+                if trimmed.first == ":" {
+                    trimmed = trimmed.dropFirst().drop { $0 == " " || $0 == "\t" }
+                }
+                result[index] = .text(String(trimmed), style)
+                break
+            }
+        }
+        return result
     }
 
     /// Whether clickable links are enabled.

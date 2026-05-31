@@ -307,6 +307,21 @@ as native SwiftUI text — no WebView, so no HTML/JS is ever executed):
 `<details>`/`<summary>` blocks render as a native collapsible disclosure group
 with the enclosed Markdown as the body.
 
+### Definition lists
+
+Markdown-Extra definition lists are supported: a term line followed by one or
+more `:`-prefixed definition lines. Consecutive term/definition paragraphs are
+grouped into a single list, with terms shown in bold and definitions indented.
+
+```markdown
+Apple
+: A fruit
+: A technology company
+
+Banana
+: A yellow fruit
+```
+
 ## Requirements
 
 - iOS 16.0+ / macOS 13.0+

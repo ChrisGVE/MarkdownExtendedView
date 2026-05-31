@@ -76,8 +76,16 @@ enum InlineFlattener {
 
     /// Produces the flattened fragments for the inline children of `parent`.
     static func fragments(for parent: any Markup) -> [InlineFragment] {
+        fragments(forChildren: Array(parent.children))
+    }
+
+    /// Produces the flattened fragments for an explicit list of inline siblings.
+    ///
+    /// Used when rendering a slice of a paragraph's inline children (e.g. a single
+    /// line of a definition list) without a wrapping markup node.
+    static func fragments(forChildren children: [any Markup]) -> [InlineFragment] {
         var pieces: [RawPiece] = []
-        flattenSequence(Array(parent.children), baseStyle: InlineStyle(), into: &pieces)
+        flattenSequence(children, baseStyle: InlineStyle(), into: &pieces)
         return resolveMath(pieces)
     }
 
