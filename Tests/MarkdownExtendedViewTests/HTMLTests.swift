@@ -154,6 +154,23 @@ final class HTMLTests: XCTestCase {
         })
     }
 
+    func testSelfContainedDetailsInOneBlock() {
+        // Compact single-block form (no blank lines) lands in one HTMLBlock.
+        let markdown = "<details><summary>Toggle</summary>\n\nInner **body**.\n</details>"
+        let document = Document(parsing: markdown)
+        let nodes = MarkdownRenderer.groupBlocks(Array(document.children))
+        guard case .details(let summary, let body)? = nodes.first else {
+            return XCTFail("Expected a details node, got \(nodes)")
+        }
+        XCTAssertEqual(summary, "Toggle")
+        XCTAssertFalse(body.isEmpty, "Inner body should be parsed and present")
+    }
+
+    func testDetailsInnerBodyExtraction() {
+        let html = "<details>\n<summary>Title</summary>\nhello world\n</details>"
+        XCTAssertEqual(MarkdownRenderer.detailsInnerBody(html), "hello world")
+    }
+
     func testNonDetailsBlocksUnaffected() {
         let markdown = "# Heading\n\nA paragraph.\n\n- item"
         let document = Document(parsing: markdown)

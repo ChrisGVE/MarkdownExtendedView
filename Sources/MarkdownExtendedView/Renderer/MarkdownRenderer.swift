@@ -66,6 +66,17 @@ struct MarkdownRenderer: View {
         while index < blocks.count {
             let block = blocks[index]
             if let html = block as? HTMLBlock, isDetailsOpen(html.rawHTML) {
+                // Self-contained: <details>…</details> within a single HTML block
+                // (compact form with no blank line). Parse the inner body as
+                // Markdown so it still renders richly.
+                if html.rawHTML.range(of: "</details>", options: .caseInsensitive) != nil {
+                    let inner = detailsInnerBody(html.rawHTML)
+                    let bodyBlocks = Array(Document(parsing: inner).children)
+                    nodes.append(.details(summary: extractSummary(html.rawHTML), body: groupBlocks(bodyBlocks)))
+                    index += 1
+                    continue
+                }
+
                 // Find the matching close, honouring nested <details>.
                 var depth = 1
                 var cursor = index + 1
@@ -144,6 +155,26 @@ struct MarkdownRenderer: View {
     private static func isDetailsClose(_ rawHTML: String) -> Bool {
         rawHTML.range(of: "</details", options: .caseInsensitive) != nil
             && rawHTML.range(of: "<details", options: .caseInsensitive) == nil
+    }
+
+    /// Extracts the inner body of a self-contained `<details>…</details>` block:
+    /// the text after `</summary>` (or after the opening `<details>` tag) up to
+    /// the last `</details>`.
+    static func detailsInnerBody(_ rawHTML: String) -> String {
+        let start: String.Index
+        if let summaryEnd = rawHTML.range(of: "</summary>", options: .caseInsensitive) {
+            start = summaryEnd.upperBound
+        } else if let openTag = rawHTML.range(of: "<details", options: .caseInsensitive),
+                  let tagEnd = rawHTML.range(of: ">", range: openTag.upperBound..<rawHTML.endIndex) {
+            start = tagEnd.upperBound
+        } else {
+            start = rawHTML.startIndex
+        }
+        guard let close = rawHTML.range(of: "</details>", options: [.caseInsensitive, .backwards]),
+              start <= close.lowerBound else {
+            return ""
+        }
+        return String(rawHTML[start..<close.lowerBound]).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     /// Extracts the plain-text summary label from a `<details>` open block.

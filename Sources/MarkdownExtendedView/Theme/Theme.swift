@@ -98,10 +98,15 @@ public struct SyntaxColors: Sendable {
 /// The full visual style for a syntax token: an optional color plus font traits.
 ///
 /// Unlike ``SyntaxColors`` (which maps each token type to a color only), a
-/// `TokenStyle` can convey syntax through bold / italic / underline and a
-/// relative size. This enables monochrome and typographic themes that don't
-/// rely on color (see the theme gallery). A `nil` color inherits the surrounding
-/// code color, so a style can add emphasis without changing the hue.
+/// `TokenStyle` can convey syntax through bold / italic / underline. This
+/// enables monochrome and typographic themes that don't rely on color (see the
+/// theme gallery). A `nil` color inherits the surrounding code color, so a style
+/// can add emphasis without changing the hue.
+///
+/// - Note: Relative font-size scaling is intentionally omitted: SwiftUI `Font`
+///   is opaque and its size cannot be read back to scale it. Size-based token
+///   styling will arrive with the Codable font-descriptor model (see the
+///   theme-serialization follow-up).
 public struct TokenStyle: Sendable, Equatable {
 
     /// The token color, or `nil` to inherit the base code color.
@@ -112,21 +117,17 @@ public struct TokenStyle: Sendable, Equatable {
     public var isItalic: Bool
     /// Whether the token is underlined.
     public var isUnderlined: Bool
-    /// Relative size multiplier applied to the code font (1.0 = unchanged).
-    public var sizeScale: CGFloat
 
     public init(
         color: Color? = nil,
         isBold: Bool = false,
         isItalic: Bool = false,
-        isUnderlined: Bool = false,
-        sizeScale: CGFloat = 1.0
+        isUnderlined: Bool = false
     ) {
         self.color = color
         self.isBold = isBold
         self.isItalic = isItalic
         self.isUnderlined = isUnderlined
-        self.sizeScale = sizeScale
     }
 
     /// A plain style that inherits color and applies no traits.
