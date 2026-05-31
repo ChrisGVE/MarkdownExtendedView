@@ -1,0 +1,4 @@
+[submodule "rust/mermaid-rs-renderer"]
+	path = rust/mermaid-rs-renderer
+	url = https://github.com/ChrisGVE/mermaid-rs-renderer.git
+	branch = dev
