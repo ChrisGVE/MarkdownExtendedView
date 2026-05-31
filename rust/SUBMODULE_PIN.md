@@ -9,10 +9,10 @@ file in the same commit that advances the submodule pin.
 | --- | --- |
 | Fork | `ChrisGVE/mermaid-rs-renderer` (parent `1jehuang/mermaid-rs-renderer`, MIT) |
 | Tracked branch | `dev` (our compile/aggregation branch — aggregates the per-PR feature/fix branches; PRD D2/D3) |
-| Pinned commit | `cf57b027cd8b1c877aa1ea8550d437a772bd204f` |
+| Pinned commit | `80dd5b1` (dev; adds MVP render-proof tests over v0.2.2 baseline cf57b027) |
 | Upstream version at pin | `v0.2.2` |
 | Date pinned | 2026-05-31 |
-| Phase | 1 (initial integration — `dev` == `master` baseline; feature branches not yet merged) |
+| Phase | 2 (MVP render-proof tests on `dev`; feature branches not yet merged) |
 
 ## Per-PR feature/fix branches on the fork (PRD §14.3)
 
