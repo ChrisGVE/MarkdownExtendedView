@@ -152,7 +152,9 @@ struct MarkdownRenderer: View {
     /// the name (so `<details>` matches but `<detailspanel>` does not).
     private static func containsTag(_ rawHTML: String, name: String, closing: Bool) -> Bool {
         let prefix = closing ? "</" : "<"
-        let pattern = "\(prefix)\(name)(?=[ \\t\\r\\n/>])"
+        // `\s` (not an explicit `\t\r\n` class) — `String.range(of:options:.regularExpression)`
+        // does not honour `\n` inside a character class, but does honour `\s`.
+        let pattern = "\(prefix)\(name)(?=[\\s/>])"
         return rawHTML.range(of: pattern, options: [.regularExpression, .caseInsensitive]) != nil
     }
 
@@ -189,7 +191,10 @@ struct MarkdownRenderer: View {
     static func extractSummary(_ rawHTML: String) -> String {
         // Match `<summary>` or `<summary …attrs…>` (boundary-aware, so
         // `<summaryx>` does not match and attributes are not treated as text).
-        guard let open = rawHTML.range(of: "<summary(\\s[^>]*)?>", options: [.regularExpression, .caseInsensitive]),
+        // Attribute values may legally contain `>`; allow it only inside quotes
+        // so the open tag isn't truncated mid-attribute (which would garble the
+        // extracted label — worse than the safe "Details" fallback).
+        guard let open = rawHTML.range(of: #"<summary(\s(?:[^>"']|"[^"]*"|'[^']*')*)?>"#, options: [.regularExpression, .caseInsensitive]),
               let close = rawHTML.range(of: "</summary>", options: .caseInsensitive),
               open.upperBound <= close.lowerBound else {
             return "Details"

@@ -207,6 +207,23 @@ final class HTMLTests: XCTestCase {
         XCTAssertEqual(MarkdownRenderer.extractSummary(html), "Details")
     }
 
+    func testSummaryAttributeValueWithAngleBracket() {
+        // A `>` inside a quoted attribute value must not truncate the open tag.
+        let html = "<details>\n<summary title=\"a > b\">Real Label</summary>\nbody\n</details>"
+        XCTAssertEqual(MarkdownRenderer.extractSummary(html), "Real Label")
+    }
+
+    func testDetailsTagFollowedByNewlineGroups() {
+        // A newline immediately after the tag name is a valid boundary.
+        let markdown = "<details\nopen>\n<summary>S</summary>\n\nBody.\n\n</details>"
+        let document = Document(parsing: markdown)
+        let nodes = MarkdownRenderer.groupBlocks(Array(document.children))
+        XCTAssertTrue(nodes.contains { node in
+            if case .details = node { return true }
+            return false
+        }, "<details\\n…> should still be recognised as a disclosure")
+    }
+
     func testDetailsLikeTagNotGrouped() {
         // A custom `<detailspanel>` element must not be treated as `<details>`,
         // which would otherwise swallow blocks up to a later real `</details>`.
