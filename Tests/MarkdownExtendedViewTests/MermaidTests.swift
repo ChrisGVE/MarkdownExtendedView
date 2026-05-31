@@ -280,4 +280,47 @@ final class MermaidTests: XCTestCase {
         let html = generateHTML(for: "&lt;")
         XCTAssertTrue(html.contains("&amp;lt;"))
     }
+
+    // MARK: - Supply-Chain Hardening Tests (task 6)
+
+    func testMermaidScriptIsPinnedToExactVersion() {
+        let html = generateHTML(for: "graph TD; A-->B")
+        XCTAssertTrue(html.contains("mermaid@\(MermaidAsset.version)/dist/mermaid.min.js"),
+                      "Mermaid script must be pinned to an exact, immutable version")
+        XCTAssertFalse(html.contains("npm/mermaid/dist"),
+                       "must not load the mutable unpinned asset path")
+    }
+
+    func testMermaidVersionIsFullyQualified() {
+        // A fully-qualified version is immutable on jsDelivr; ranges like "11" are not.
+        let components = MermaidAsset.version.split(separator: ".")
+        XCTAssertEqual(components.count, 3, "version must be MAJOR.MINOR.PATCH")
+        XCTAssertTrue(components.allSatisfy { Int($0) != nil }, "version components must be numeric")
+    }
+
+    func testMermaidScriptHasSubresourceIntegrity() {
+        let html = generateHTML(for: "graph TD; A-->B")
+        XCTAssertTrue(html.contains("integrity=\"\(MermaidAsset.integrity)\""),
+                      "pinned script must carry an SRI hash")
+        XCTAssertTrue(MermaidAsset.integrity.hasPrefix("sha384-"), "SRI hash should be sha384")
+        XCTAssertTrue(html.contains("crossorigin=\"anonymous\""),
+                      "SRI requires crossorigin on the script element")
+    }
+
+    func testGeneratedHTMLHasRestrictiveCSP() {
+        let html = generateHTML(for: "graph TD; A-->B")
+        XCTAssertTrue(html.contains("Content-Security-Policy"), "must declare a CSP")
+        XCTAssertTrue(html.contains("default-src 'none'"),
+                      "CSP must deny by default and only allow what is needed")
+        XCTAssertTrue(html.contains("script-src 'unsafe-inline' https://cdn.jsdelivr.net"),
+                      "CSP must restrict scripts to inline init plus the pinned CDN host")
+    }
+
+    func testGeneratedHTMLSignalsRenderState() {
+        // The page must signal success/failure so the native layer can show a
+        // retry fallback (task 7).
+        let html = generateHTML(for: "graph TD; A-->B")
+        XCTAssertTrue(html.contains("data-mermaid"), "render state must be exposed for failure detection")
+        XCTAssertTrue(html.contains("mermaid.run("), "explicit run is needed to observe completion")
+    }
 }
