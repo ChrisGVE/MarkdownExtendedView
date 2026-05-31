@@ -289,9 +289,11 @@ Current limitations that may be addressed in future versions:
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| Reference-style links | Not verified | `[text][ref]` syntax may not work |
 | HTML blocks | Partial | Raw HTML is not rendered |
 | Definition lists | Not supported | Not part of GFM |
+
+Reference-style links (`[text][ref]`, `[ref][]`, and shortcut `[ref]` with a
+`[ref]: url` definition) are fully supported.
 
 ## Requirements
 

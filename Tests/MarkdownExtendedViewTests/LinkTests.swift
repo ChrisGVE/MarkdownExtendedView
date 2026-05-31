@@ -191,6 +191,57 @@ final class LinkTests: XCTestCase {
 
     // MARK: - Multiple Links Tests
 
+    // MARK: - Reference-Style Links
+
+    func testFullReferenceLinkResolves() {
+        let markdown = "See [the site][ref].\n\n[ref]: https://example.com"
+        let document = Document(parsing: markdown)
+        let destinations = collectLinkDestinations(document)
+        XCTAssertEqual(destinations, ["https://example.com"],
+                       "Full reference link [text][ref] should resolve to its definition")
+    }
+
+    func testCollapsedReferenceLinkResolves() {
+        let markdown = "See [ref][].\n\n[ref]: https://example.com"
+        let document = Document(parsing: markdown)
+        XCTAssertEqual(collectLinkDestinations(document), ["https://example.com"],
+                       "Collapsed reference link [ref][] should resolve")
+    }
+
+    func testShortcutReferenceLinkResolves() {
+        let markdown = "See [shortcut].\n\n[shortcut]: https://short.example.com \"Title\""
+        let document = Document(parsing: markdown)
+        XCTAssertEqual(collectLinkDestinations(document), ["https://short.example.com"],
+                       "Shortcut reference link [shortcut] should resolve")
+    }
+
+    func testReferenceLinkProducesLinkFragment() {
+        let markdown = "Text with a [the site][ref] link.\n\n[ref]: https://example.com"
+        let document = Document(parsing: markdown)
+        guard let paragraph = document.child(at: 0) as? Paragraph else {
+            return XCTFail("Expected a paragraph")
+        }
+        let fragments = InlineFlattener.fragments(for: paragraph)
+        let hasResolvedLink = fragments.contains { fragment in
+            if case .link(let destination, _) = fragment { return destination == "https://example.com" }
+            return false
+        }
+        XCTAssertTrue(hasResolvedLink, "Reference links must flatten to a resolved link fragment")
+    }
+
+    /// Collects all link destinations in document order.
+    private func collectLinkDestinations(_ markup: any Markup) -> [String] {
+        var destinations: [String] = []
+        func walk(_ node: any Markup) {
+            if let link = node as? Markdown.Link, let destination = link.destination {
+                destinations.append(destination)
+            }
+            for child in node.children { walk(child) }
+        }
+        walk(markup)
+        return destinations
+    }
+
     func testMultipleLinksInParagraph() {
         let markdown = "Visit [Google](https://google.com) or [Apple](https://apple.com)."
         let document = Document(parsing: markdown)
