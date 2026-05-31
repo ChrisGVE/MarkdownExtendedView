@@ -322,6 +322,18 @@ Banana
 : A yellow fruit
 ```
 
+### Syntax highlighting
+
+A built-in highlighter covers common languages (Swift, Python, JS/TS, Java,
+C/C++, Go, Rust, Ruby, Kotlin, PHP, C#). To support more languages, plug in your
+own engine (e.g. tree-sitter) by conforming to `SyntaxHighlighting` and injecting
+it — the built-in remains the default:
+
+```swift
+MarkdownView(content)
+    .markdownSyntaxHighlighter(MyTreeSitterHighlighter())
+```
+
 ## Requirements
 
 - iOS 16.0+ / macOS 13.0+

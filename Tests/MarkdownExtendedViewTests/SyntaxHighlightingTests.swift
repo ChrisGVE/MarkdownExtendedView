@@ -16,6 +16,7 @@
 // limitations under the License.
 
 import XCTest
+import SwiftUI
 import Markdown
 @testable import MarkdownExtendedView
 
@@ -219,5 +220,34 @@ final class SyntaxHighlightingTests: XCTestCase {
         XCTAssertEqual(codeBlock.language, "swift")
         XCTAssertTrue(codeBlock.code.contains("struct"))
         XCTAssertTrue(codeBlock.code.contains("let name"))
+    }
+
+    // MARK: - Pluggable Highlighter Seam
+
+    /// A custom highlighter that marks the entire code as a single keyword token.
+    private struct StubHighlighter: SyntaxHighlighting {
+        func tokenize(_ code: String, language: String?) -> [Token] {
+            [Token(text: code, type: .keyword)]
+        }
+    }
+
+    func testBuiltInConformsToProtocol() {
+        let highlighter: any SyntaxHighlighting = SyntaxHighlighter()
+        let tokens = highlighter.tokenize("let x = 1", language: "swift")
+        XCTAssertFalse(tokens.isEmpty)
+        XCTAssertTrue(tokens.contains { $0.type == .keyword })
+    }
+
+    func testCustomHighlighterProducesItsOwnTokens() {
+        let highlighter: any SyntaxHighlighting = StubHighlighter()
+        let tokens = highlighter.tokenize("anything here", language: "swift")
+        XCTAssertEqual(tokens.count, 1)
+        XCTAssertEqual(tokens.first?.type, .keyword)
+        XCTAssertEqual(tokens.first?.text, "anything here")
+    }
+
+    func testDefaultEnvironmentHighlighterIsBuiltIn() {
+        let environment = EnvironmentValues()
+        XCTAssertTrue(environment.markdownSyntaxHighlighter is SyntaxHighlighter)
     }
 }

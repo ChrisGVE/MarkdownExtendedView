@@ -48,11 +48,24 @@ public struct Token: Sendable {
     }
 }
 
-/// A simple syntax highlighter that tokenizes code for common languages.
+/// A pluggable syntax highlighter.
+///
+/// Conform a custom type to plug in a more capable engine (e.g. tree-sitter or
+/// an existing highlighting library) and inject it via the
+/// ``SwiftUI/View/markdownSyntaxHighlighter(_:)`` modifier. The built-in
+/// ``SyntaxHighlighter`` is used by default.
+public protocol SyntaxHighlighting: Sendable {
+    /// Tokenizes code for the given language into colourable tokens.
+    func tokenize(_ code: String, language: String?) -> [Token]
+}
+
+/// A simple built-in syntax highlighter that tokenizes code for common languages.
 ///
 /// Supports Swift, Python, JavaScript, TypeScript, Java, C, C++, Go, Rust, Ruby,
 /// and other common languages. Falls back to plain text for unknown languages.
-public struct SyntaxHighlighter: Sendable {
+/// For broader language coverage, supply a custom ``SyntaxHighlighting`` via
+/// ``SwiftUI/View/markdownSyntaxHighlighter(_:)``.
+public struct SyntaxHighlighter: SyntaxHighlighting {
 
     public init() {}
 

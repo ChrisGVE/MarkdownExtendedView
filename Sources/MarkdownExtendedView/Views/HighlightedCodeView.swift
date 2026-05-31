@@ -27,7 +27,7 @@ struct HighlightedCodeView: View {
     let language: String?
     let theme: MarkdownTheme
 
-    private let highlighter = SyntaxHighlighter()
+    @Environment(\.markdownSyntaxHighlighter) private var highlighter
 
     var body: some View {
         let tokens = highlighter.tokenize(code.trimmingCharacters(in: .newlines), language: language)
