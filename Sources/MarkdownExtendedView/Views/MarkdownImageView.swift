@@ -64,6 +64,7 @@ struct MarkdownImageView: View {
         Text("[\(altText)]")
             .font(theme.bodyFont)
             .foregroundColor(theme.secondaryTextColor)
+            .accessibilityLabel(altText.isEmpty ? "Image" : "Image: \(altText)")
     }
 
     /// Error placeholder when image fails to load.
@@ -81,6 +82,8 @@ struct MarkdownImageView: View {
         .frame(maxWidth: .infinity, minHeight: 60)
         .background(theme.codeBackgroundColor.opacity(0.5))
         .cornerRadius(8)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(altText.isEmpty ? "Image failed to load" : "Image failed to load: \(altText)")
     }
 
     /// Resolves the image URL from the source string.

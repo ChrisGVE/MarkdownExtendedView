@@ -35,6 +35,10 @@ struct MarkdownRenderer: View {
                 renderBlockNode(node)
             }
         }
+        // Allow selecting and copying rendered text (task 14). Applies to the
+        // SwiftUI Text descendants; math (a UIView/NSView) and code blocks remain
+        // selectable within their own representations.
+        .textSelection(.enabled)
     }
 
     // MARK: - Block Grouping (HTML <details>)
@@ -449,6 +453,7 @@ struct MarkdownRenderer: View {
                 .font(theme.bodyFont)
                 .foregroundColor(item.checkbox?.isChecked == true ? theme.taskCheckboxColor : theme.secondaryTextColor)
                 .frame(width: 20, alignment: .trailing)
+                .accessibilityLabel(item.checkbox?.isChecked == true ? "Checked task" : "Unchecked task")
 
             VStack(alignment: .leading, spacing: theme.listItemSpacing) {
                 ForEach(Array(item.children.enumerated()), id: \.offset) { _, child in

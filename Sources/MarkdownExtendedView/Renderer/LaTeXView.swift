@@ -28,6 +28,13 @@ struct LaTeXView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
+        content
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(Text(accessibilityLabel))
+    }
+
+    @ViewBuilder
+    private var content: some View {
         if isBlock {
             // Display/block math - centered, larger
             HStack {
@@ -40,6 +47,13 @@ struct LaTeXView: View {
             // Inline math - flows with text
             mathView
         }
+    }
+
+    /// Spoken description for VoiceOver: the LaTeX source is the best available
+    /// alt text for a rendered equation.
+    private var accessibilityLabel: String {
+        let prefix = isBlock ? "Display equation" : "Equation"
+        return "\(prefix): \(latex)"
     }
 
     @ViewBuilder
