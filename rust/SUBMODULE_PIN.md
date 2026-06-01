@@ -9,10 +9,10 @@ file in the same commit that advances the submodule pin.
 | --- | --- |
 | Fork | `ChrisGVE/mermaid-rs-renderer` (parent `1jehuang/mermaid-rs-renderer`, MIT) |
 | Tracked branch | `dev` (our compile/aggregation branch — aggregates the per-PR feature/fix branches; PRD D2/D3) |
-| Pinned commit | `0ec71be` (dev; embedded zero-fs font + flowchart self-label route fix merged over the Phase 2 render-proof baseline) |
+| Pinned commit | `ef92bf2` (dev; embedded zero-fs font + flowchart self-label route fix + measurer mutex-poison recovery over the Phase 2 render-proof baseline) |
 | Upstream version at pin | `v0.2.2` |
 | Date pinned | 2026-06-01 |
-| Phase | 2b (deterministic zero-filesystem embedded font; flowchart self-label route fix) |
+| Phase | 2b/3 (deterministic zero-filesystem embedded font; flowchart self-label route fix; NF-03 measurer poison recovery for the FFI thread-safety guarantee) |
 
 ## Per-PR feature/fix branches on the fork (PRD §14.3)
 
@@ -29,6 +29,7 @@ xcframework builds against the union:
 | `fix/sequence-par-alt` | sequenceDiagram `par`/`alt`/`loop` fidelity (MVP type) | #102, #103 |
 | `fix/panic-guards` | Panic hardening (`catch_unwind`, node-cap) | #37, #95 |
 | `fix/viewbox-sizing` | viewBox / intrinsic sizing | #83 |
+| `fix/measurer-poison-recovery` | NF-03: ignore-poison idiom on the `TEXT_MEASURER` mutex so a transient panic cannot permanently degrade text metrics to the heuristic | upstream PR pending Chris's go-ahead |
 
 ## Known issues at this pin
 
