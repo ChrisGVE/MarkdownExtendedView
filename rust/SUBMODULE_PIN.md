@@ -9,10 +9,10 @@ file in the same commit that advances the submodule pin.
 | --- | --- |
 | Fork | `ChrisGVE/mermaid-rs-renderer` (parent `1jehuang/mermaid-rs-renderer`, MIT) |
 | Tracked branch | `dev` (our compile/aggregation branch — aggregates the per-PR feature/fix branches; PRD D2/D3) |
-| Pinned commit | `80dd5b1` (dev; adds MVP render-proof tests over v0.2.2 baseline cf57b027) |
+| Pinned commit | `0ec71be` (dev; embedded zero-fs font + flowchart self-label route fix merged over the Phase 2 render-proof baseline) |
 | Upstream version at pin | `v0.2.2` |
-| Date pinned | 2026-05-31 |
-| Phase | 2 (MVP render-proof tests on `dev`; feature branches not yet merged) |
+| Date pinned | 2026-06-01 |
+| Phase | 2b (deterministic zero-filesystem embedded font; flowchart self-label route fix) |
 
 ## Per-PR feature/fix branches on the fork (PRD §14.3)
 
@@ -32,23 +32,22 @@ xcframework builds against the union:
 
 ## Known issues at this pin
 
-Two fork test failures observed while establishing the MVP render proof
-(Task 3). Neither blocks the native-mermaid task chain or any MVP diagram path.
+None. The full fork suite is green on macOS at this pin (340 passed, 0 failed,
+0 ignored). The two failures recorded at the previous pin (`80dd5b1`) are both
+resolved here:
 
 1. **`layout::tests::dense_flowchart_keeps_mid_span_edge_reasonably_direct`** —
-   host-font-metrics artifact, **not a bug**. Green on the author's
-   `ubuntu-latest` CI, red only on macOS (`path/manhattan` ratio 2.89 > 2.5)
-   because `text_metrics::load_system_fonts()` resolves different metrics per
-   OS. To be eliminated by the deterministic embedded-font rework
-   ([[feat/embedded-font]] — Phase 2b); **re-verify it passes on macOS after
-   that lands.** No upstream action (author CI already green). (The fork has
-   GitHub issues disabled, so this is tracked here.)
+   was a host-font-metrics artifact (red on macOS, green on Ubuntu CI). Resolved
+   by the deterministic zero-filesystem embedded-font rework ([[feat/embedded-font]],
+   `e863422`): glyph metrics are now identical on every platform, so the macOS
+   `path/manhattan` ratio matches CI and the assertion passes.
 
-2. **`all_repository_fixtures_satisfy_layout_invariants`** — genuine,
-   environment-independent layout bug (red on Ubuntu CI **and** macOS):
-   `flowchart_opaque.mmd` edge `Baldr->Ke2` route overlaps its own center label
-   box. Filed upstream as **1jehuang/mermaid-rs-renderer#105** (related to #63).
-   Fix deferred — not on an MVP path; revisit only if it reaches one.
+2. **`all_repository_fixtures_satisfy_layout_invariants`** — was a genuine
+   layout bug (`flowchart_opaque.mmd` edge `Baldr->Ke2` route overlapping its own
+   center label). Fixed at root by scaling the
+   `nudge_flowchart_labels_clear_of_own_paths` step ladder to the label size
+   (`fix/edge-label-route-overlap`, `72ba047`). Upstreamed as
+   **1jehuang/mermaid-rs-renderer#106** (`Closes #105`).
 
 ## How to advance the pin
 
