@@ -14,5 +14,27 @@ crate-type = ["staticlib", "rlib"]
 [dependencies]
 # Path dependency on the pinned fork submodule. The fork's `cli`/`clap` feature
 # is dropped (default-features = false); `png` stays enabled for the dual-format
-# render path (PRD D1).
+# render path (PRD D1) — it brings the resvg/usvg/fontdb raster stack and
+# exposes `embedded_font::get_font_database()` for the zero-fs PNG path.
 mermaid-rs-renderer = { path = "../mermaid-rs-renderer", default-features = false, features = ["png"] }
+
+# Raster (PNG) path. We construct `usvg::Options` ourselves so we can apply the
+# three egress/zero-fs locks (PRD §4.7b / v7-MF1..3): a data:-only href
+# resolver, `resources_dir = None`, and the embedded-font `fontdb`. Pinned to
+# the SAME 0.47 line the fork links (so the fontdb 0.23 type unifies) and built
+# `default-features = false, features = ["text"]` so the `system-fonts` /
+# `memmap-fonts` features never enter the link graph (v7-MF1).
+resvg = { version = "0.47.0", default-features = false, features = ["text"] }
+usvg = { version = "0.47.0", default-features = false, features = ["text"] }
+fontdb = { version = "0.23", default-features = false, features = ["std"] }
+
+# The release profile linked into the xcframework. `panic = "unwind"` is
+# MANDATORY: every `extern "C"` body relies on `catch_unwind`, which a
+# `panic = "abort"` build silently turns into a no-op (UB on a renderer panic).
+# opt-level "z" / LTO / codegen-units 1 / strip are the size knobs (PRD §7).
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = "symbols"
+panic = "unwind"
