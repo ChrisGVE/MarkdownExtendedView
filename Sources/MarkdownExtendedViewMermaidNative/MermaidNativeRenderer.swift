@@ -1,0 +1,144 @@
+// MermaidNativeRenderer.swift
+// MarkdownExtendedView
+//
+// Copyright 2025 Christian C. Berclaz
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import Cmmdr
+import CoreGraphics
+import Foundation
+
+/// Thin Swift adapter over the prebuilt C-ABI renderer (`Cmmdr`, PRD §4.6).
+///
+/// This is the INITIAL adapter (Phase 6 / Task 9): it calls
+/// `mmdr_render_svg` / `mmdr_render_png` with default options, validates the
+/// result's ABI guards, copies the payload, frees the handle, and maps the
+/// status to a `MermaidRenderResult`. Theme mapping (Task 13), the SVGView
+/// sanitizer + display (Task 10), the registered-renderer seam (Task 11), and
+/// the Swift-side DoS timeout (Task 15) layer on top in later phases.
+public enum MermaidNativeRenderer {
+
+    /// A `'static`, NUL-terminated renderer version string from the binary.
+    public static var version: String {
+        String(cString: mmdr_version())
+    }
+
+    /// Force the embedded-font `OnceLock`s to evaluate early, off the render
+    /// hot path (PRD Arbitration A). Idempotent, thread-safe, panic-isolated;
+    /// a latency hint only — NOT required for correctness.
+    public static func warmUp() {
+        mmdr_init()
+    }
+
+    /// Render `code` to the requested `format`, returning a status-mapped
+    /// result. Passes default options (no theme/DoS overrides yet); the FFI
+    /// applies its own DoS defaults (256 KB source cap, 5000-node cap).
+    public static func render(
+        code: String,
+        format: MermaidDisplayFormat
+    ) -> MermaidRenderResult {
+        let bytes = Array(code.utf8)
+        let raw: UnsafeMutablePointer<MmdrResult>? = bytes.withUnsafeBufferPointer { buffer in
+            switch format {
+            case .vectorSVG:
+                return mmdr_render_svg(buffer.baseAddress, buffer.count, nil)
+            case .rasterPNG:
+                return mmdr_render_png(buffer.baseAddress, buffer.count, nil)
+            }
+        }
+
+        // Null only on allocation failure (PRD §4.3).
+        guard let result = raw else {
+            return .renderError(message: "renderer returned a null result")
+        }
+        // The handle is freed exactly once, via the only correct deallocator.
+        defer { mmdr_result_free(result) }
+
+        let value = result.pointee
+
+        // ABI guards: the header and the linked binary must agree (PRD §4.6).
+        guard value.abi_version == UInt32(MMDR_ABI_VERSION),
+              value.struct_size == UInt32(MemoryLayout<MmdrResult>.size)
+        else {
+            return .renderError(message: "ABI mismatch between header and binary")
+        }
+
+        return mapResult(value, format: format)
+    }
+
+    /// Map a validated `MmdrResult` to the Swift result enum. The status→case
+    /// mapping is identical for both render functions (PRD §4.6).
+    private static func mapResult(
+        _ value: MmdrResult,
+        format: MermaidDisplayFormat
+    ) -> MermaidRenderResult {
+        // `MmdrResult.status` is `int32_t`; the `MmdrStatus` enum imports with a
+        // `UInt32` raw value — convert each constant to `Int32` to match.
+        switch value.status {
+        case Int32(MmdrStatus_Ok.rawValue):
+            return .success(
+                payload: decodePayload(value, format: format),
+                // F6 viewBox sizing lands in Task 16; until then, unknown.
+                intrinsicSize: .zero
+            )
+
+        case Int32(MmdrStatus_ErrUnsupported.rawValue):
+            // Payload is the redacted "diagram type not yet supported" message;
+            // the concrete type name is not exposed by the FFI in MVP.
+            return .unsupported(type: nil)
+
+        case Int32(MmdrStatus_ErrUnexpectedToken.rawValue),
+             Int32(MmdrStatus_ErrUnknownParticipant.rawValue),
+             Int32(MmdrStatus_ErrUnclosedSubgraph.rawValue),
+             Int32(MmdrStatus_ErrInvalidDirective.rawValue):
+            let locValid = value.loc_valid != 0
+            return .parseError(
+                message: decodeMessage(value),
+                line: locValid ? Int(value.err_line) : nil,
+                col: (locValid && value.err_col != 0) ? Int(value.err_col) : nil
+            )
+
+        default:
+            // 6/7 (defensive UTF-8/null guards), 8 (version), 9 (too large),
+            // 99 (panic, redacted), and any unexpected code map to a generic,
+            // safe render error. Status 10 (ErrTimeout) is never emitted in MVP.
+            return .renderError(message: decodeMessage(value))
+        }
+    }
+
+    /// Decode a successful payload per format: SVG → UTF-8 `String`, PNG → raw
+    /// `Data`. Empty payload yields an empty value of the matching kind.
+    private static func decodePayload(
+        _ value: MmdrResult,
+        format: MermaidDisplayFormat
+    ) -> MermaidRenderPayload {
+        switch format {
+        case .vectorSVG:
+            return .svg(decodeMessage(value))
+        case .rasterPNG:
+            guard let ptr = value.data_ptr, value.data_len > 0 else {
+                return .png(Data())
+            }
+            return .png(Data(bytes: ptr, count: Int(value.data_len)))
+        }
+    }
+
+    /// Decode the payload bytes as a UTF-8 string (SVG text or a redacted
+    /// error message). Returns "" on a null/empty/invalid-UTF-8 payload.
+    private static func decodeMessage(_ value: MmdrResult) -> String {
+        guard let ptr = value.data_ptr, value.data_len > 0 else { return "" }
+        let buffer = UnsafeBufferPointer(start: ptr, count: Int(value.data_len))
+        return String(decoding: buffer, as: UTF8.self)
+    }
+}

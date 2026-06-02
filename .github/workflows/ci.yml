@@ -25,6 +25,9 @@ jobs:
       - name: Build
         run: swift build
 
+      - name: Core-isolation gate (T9 / F3-AC4)
+        run: ./scripts/verify-core-isolation.sh
+
       - name: Run Tests
         run: swift test
 

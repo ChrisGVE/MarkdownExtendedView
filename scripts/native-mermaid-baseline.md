@@ -6,7 +6,8 @@ green-baseline anchors the epic must preserve or improve.
 
 | Metric | Baseline | Source |
 | --- | --- | --- |
-| Full `swift test` | 272 tests, 0 failures, none ignored | `swift test` |
+| Full `swift test` (core-only) | 272 tests, 0 failures, none ignored | `swift test` |
+| `MEV_MERMAID_NATIVE=1 swift test` | 278 tests (272 core + 6 native FFI round-trip/status, Phase 6 / Task 9), 0 failures, none ignored | requires the on-demand xcframework |
 | `MermaidTests.swift` count | 22 tests | `grep -c 'func test' Tests/MarkdownExtendedViewTests/MermaidTests.swift` |
 | WebKit imports | exactly 1, in `Sources/MarkdownExtendedView/Views/MermaidView.swift` | `scripts/webkit-guard.sh` |
 | Deployment floor | iOS 16 / macOS 13 (do not raise) | `Package.swift` |
