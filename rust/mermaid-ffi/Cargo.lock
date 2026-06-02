@@ -193,6 +193,7 @@ version = "0.1.0"
 dependencies = [
  "fontdb",
  "mermaid-rs-renderer",
+ "regex",
  "resvg",
  "usvg",
 ]

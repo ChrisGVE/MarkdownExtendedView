@@ -5,6 +5,10 @@ on:
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  schedule:
+    # Weekly: re-run cargo audit against unchanged deps to catch newly-disclosed
+    # advisories (SECURITY.md supply-chain gate).
+    - cron: '0 0 * * 0'
 
 jobs:
   test:

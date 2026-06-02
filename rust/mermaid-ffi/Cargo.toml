@@ -37,6 +37,12 @@ resvg = { version = "0.47.0", default-features = false, features = ["text"] }
 usvg = { version = "0.47.0", default-features = false, features = ["text"] }
 fontdb = { version = "0.23", default-features = false, features = ["std"] }
 
+# Security floor for `regex` (pulled in transitively by the resvg/usvg text
+# stack). RUSTSEC-2022-0013: regex < 1.5.5 has a DoS via crafted patterns; we
+# never compile untrusted patterns, but the floor closes the advisory and is
+# enforced by `cargo audit` in CI. Upper bound keeps us on the audited 1.x line.
+regex = ">=1.5.5, <2"
+
 # The release profile linked into the xcframework. `panic = "unwind"` is
 # MANDATORY: every `extern "C"` body relies on `catch_unwind`, which a
 # `panic = "abort"` build silently turns into a no-op (UB on a renderer panic).
