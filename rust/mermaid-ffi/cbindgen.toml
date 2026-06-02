@@ -20,6 +20,10 @@ usize_is_size_t = true
 
 [export]
 include = ["MmdrStatus", "MmdrResult", "MmdrOptions"]
+# `mmdr_panic_probe` is a non-default, never-shipped test-only symbol (the
+# `panic_probe` feature). cbindgen does not evaluate cfg gates, so exclude it
+# explicitly — it must never appear in the committed C header.
+exclude = ["mmdr_panic_probe"]
 
 [enum]
 prefix_with_name = true

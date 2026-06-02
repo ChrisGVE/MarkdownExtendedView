@@ -11,6 +11,15 @@ publish = false
 # rlib: lets the crate's own unit/integration tests run on the host.
 crate-type = ["staticlib", "rlib"]
 
+[features]
+# Non-default, NEVER shipped: exposes `mmdr_panic_probe`, a test-only entry
+# point that deliberately panics inside the render catch_unwind path so a
+# linked harness can prove the release+LTO+stripped staticlib maps a panic to
+# status 99 without aborting (PRD §4.3 N5). The five-slice matrix builds
+# WITHOUT this feature, and cbindgen runs without it, so the symbol never
+# enters a shipped slice or the committed header.
+panic_probe = []
+
 [dependencies]
 # Path dependency on the pinned fork submodule. The fork's `cli`/`clap` feature
 # is dropped (default-features = false); `png` stays enabled for the dual-format

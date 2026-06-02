@@ -325,6 +325,23 @@ pub extern "C" fn mmdr_version() -> *const c_char {
     c"mermaid-ffi 0.1.0 (abi 2)".as_ptr()
 }
 
+/// Test-only: deliberately panic inside the SAME `catch_unwind` + `finish`
+/// path the render entry points use, so a linked harness can prove the SHIPPED
+/// staticlib (release + LTO + strip, `panic = "unwind"`) maps a renderer panic
+/// to status 99 with a redacted payload and WITHOUT aborting the process — the
+/// PRD §4.3 N5 on-target guarantee. Gated behind the non-default `panic_probe`
+/// feature so it never enters a shipped build or the cbindgen header. (No input
+/// panics the hardened renderer, so this is the deterministic substitute for
+/// "feed a deliberately-panicking input".)
+#[cfg(feature = "panic_probe")]
+#[no_mangle]
+pub extern "C" fn mmdr_panic_probe() -> *mut MmdrResult {
+    let outcome = catch_unwind(AssertUnwindSafe(|| -> Outcome {
+        panic!("panic_probe: deliberate panic for the N5 on-target guarantee");
+    }));
+    finish_outcome(outcome)
+}
+
 /// No-op latency hint (PRD Arbitration A). The embedded font is seeded into its
 /// `OnceLock` database at construction with ZERO filesystem I/O, so the first
 /// render is correct with no prior init. This call merely forces the font
