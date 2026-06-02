@@ -173,4 +173,45 @@ mod tests {
         assert!(parse_hex_color("rebeccapurple").is_none());
         assert!(parse_hex_color("rgb(1,2,3)").is_none());
     }
+
+    // Serializes the process-global `$HOME`/`$XDG_CACHE_HOME` mutation below so
+    // it cannot race other parallel tests. (No other test in this crate reads
+    // those vars — the fontdb filesystem cache was removed in Phase 2b.)
+    static ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    #[test]
+    fn text_render_under_nonwritable_home_is_unaffected_zero_font_io() {
+        // T2b(3) / v7-MF2: a text-bearing diagram rasterizes correctly with
+        // `$HOME`/`$XDG_CACHE_HOME` pointed at a non-writable sentinel — proving
+        // the injected embedded `fontdb` lays out text with ZERO filesystem font
+        // I/O (`load_system_fonts()` never fires; no `~/.cache` read/write).
+        let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let svg = svg_of("flowchart LR\nAlpha-->Beta"); // node labels = text
+        let baseline = rasterize_png(&svg, &Theme::modern()).unwrap();
+
+        let old_home = std::env::var_os("HOME");
+        let old_xdg = std::env::var_os("XDG_CACHE_HOME");
+        std::env::set_var("HOME", "/nonexistent/mmdr-sentinel");
+        std::env::set_var("XDG_CACHE_HOME", "/nonexistent/mmdr-sentinel/cache");
+        let under_sentinel = rasterize_png(&svg, &Theme::modern()).unwrap();
+        match old_home {
+            Some(v) => std::env::set_var("HOME", v),
+            None => std::env::remove_var("HOME"),
+        }
+        match old_xdg {
+            Some(v) => std::env::set_var("XDG_CACHE_HOME", v),
+            None => std::env::remove_var("XDG_CACHE_HOME"),
+        }
+
+        assert_eq!(
+            &under_sentinel[..8],
+            &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]
+        );
+        // Byte-identical to the baseline ⇒ the rasterizer's text layout does not
+        // depend on any filesystem path the sentinel `$HOME` would have broken.
+        assert_eq!(
+            baseline, under_sentinel,
+            "PNG text layout must be independent of $HOME (embedded fontdb, no fs font I/O)"
+        );
+    }
 }
