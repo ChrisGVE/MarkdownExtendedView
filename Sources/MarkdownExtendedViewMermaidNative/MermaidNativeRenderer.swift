@@ -42,19 +42,23 @@ public enum MermaidNativeRenderer {
     }
 
     /// Render `code` to the requested `format`, returning a status-mapped
-    /// result. Passes default options (no theme/DoS overrides yet); the FFI
-    /// applies its own DoS defaults (256 KB source cap, 5000-node cap).
+    /// result. When `options` is nil the FFI applies its own defaults (256 KB
+    /// source cap, 5000-node cap, modern theme); pass a `ThemeMapper`-built
+    /// value to override theme/spacing/caps.
     public static func render(
         code: String,
-        format: MermaidDisplayFormat
+        format: MermaidDisplayFormat,
+        options: MmdrOptions? = nil
     ) -> MermaidRenderResult {
         let bytes = Array(code.utf8)
         let raw: UnsafeMutablePointer<MmdrResult>? = bytes.withUnsafeBufferPointer { buffer in
-            switch format {
-            case .vectorSVG:
-                return mmdr_render_svg(buffer.baseAddress, buffer.count, nil)
-            case .rasterPNG:
-                return mmdr_render_png(buffer.baseAddress, buffer.count, nil)
+            withOptionsPointer(options) { optsPtr in
+                switch format {
+                case .vectorSVG:
+                    return mmdr_render_svg(buffer.baseAddress, buffer.count, optsPtr)
+                case .rasterPNG:
+                    return mmdr_render_png(buffer.baseAddress, buffer.count, optsPtr)
+                }
             }
         }
 
@@ -75,6 +79,16 @@ public enum MermaidNativeRenderer {
         }
 
         return mapResult(value, format: format)
+    }
+
+    /// Call `body` with a pointer to `options` (or nil for FFI defaults),
+    /// keeping the value alive for the duration of the call.
+    private static func withOptionsPointer<R>(
+        _ options: MmdrOptions?,
+        _ body: (UnsafePointer<MmdrOptions>?) -> R
+    ) -> R {
+        guard var options else { return body(nil) }
+        return withUnsafePointer(to: &options) { body($0) }
     }
 
     /// Map a validated `MmdrResult` to the Swift result enum. The status→case

@@ -46,6 +46,7 @@ public struct MermaidNativeView: View {
     private let format: MermaidDisplayFormat
 
     @State private var result: MermaidRenderResult?
+    @Environment(\.colorScheme) private var colorScheme
 
     public init(
         code: String,
@@ -64,7 +65,7 @@ public struct MermaidNativeView: View {
             .cornerRadius(8)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(accessibilityLabel)
-            .task(id: TaskKey(code: code, format: format)) {
+            .task(id: TaskKey(code: code, format: format, colorScheme: colorScheme)) {
                 await renderOffMain()
             }
     }
@@ -178,8 +179,9 @@ public struct MermaidNativeView: View {
     private func renderOffMain() async {
         let code = self.code
         let format = self.format
+        let options = ThemeMapper.options(for: theme, colorScheme: colorScheme)
         let rendered = await Task.detached(priority: .userInitiated) {
-            MermaidNativeRenderer.render(code: code, format: format)
+            MermaidNativeRenderer.render(code: code, format: format, options: options)
         }.value
         result = rendered
     }
@@ -197,9 +199,11 @@ public struct MermaidNativeView: View {
         #endif
     }
 
-    /// Re-runs the render only when the source or format changes.
+    /// Re-runs the render when the source, format, or color scheme changes
+    /// (the scheme flips the resolved theme RGBA — Task 13).
     private struct TaskKey: Equatable {
         let code: String
         let format: MermaidDisplayFormat
+        let colorScheme: ColorScheme
     }
 }
