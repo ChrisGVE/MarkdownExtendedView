@@ -176,8 +176,14 @@ public struct MermaidNativeView: View {
 
     private func renderOffMain() async {
         let options = ThemeMapper.options(for: theme, colorScheme: colorScheme)
+        // Sync cache hit: display immediately with NO placeholder transition
+        // (T12). This assignment runs on the MainActor before any suspension.
+        if let cached = MermaidRenderGuard.cachedResult(code: code, format: format, options: options) {
+            result = cached
+            return
+        }
         // The guard applies the source-size cap, the FFI node cap (off-actor),
-        // and the perceived-latency timeout (Task 15).
+        // the perceived-latency timeout (Task 15), and result caching (Task 18).
         result = await MermaidRenderGuard.render(code: code, format: format, options: options)
     }
 

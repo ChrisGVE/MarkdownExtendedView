@@ -61,15 +61,39 @@ public enum MermaidRenderGuard {
             return .renderError(message: "Diagram source too large (max 256 KB).")
         }
 
+        // Cache hit avoids re-running Rust entirely (PR7 / MF-5).
+        let key = MermaidCacheKey(source: code, options: options, format: format)
+        if let cached = MermaidRenderCache.shared.get(key) {
+            return cached
+        }
+
         // Layers 2 + 3: off-actor FFI render (node cap inside) raced against
         // the perceived-latency deadline.
-        return await withTimeout(seconds: timeoutSeconds) {
+        let result = await withTimeout(seconds: timeoutSeconds) {
             await Task.detached(priority: .userInitiated) {
                 MermaidNativeRenderer.render(code: code, format: format, options: options)
             }.value
         } onTimeout: {
             .renderError(message: "Render timed out.")
         }
+
+        // Cache only deterministic outcomes; a transient timeout must not stick.
+        if case .renderError(let message) = result, message == "Render timed out." {
+            return result
+        }
+        MermaidRenderCache.shared.set(key, result)
+        return result
+    }
+
+    /// Synchronous cache lookup (no FFI). The view uses this to seed its state
+    /// so a repeat of the same source+inputs displays with NO placeholder
+    /// transition (T12 sync cache-hit).
+    public static func cachedResult(
+        code: String,
+        format: MermaidDisplayFormat,
+        options: MmdrOptions?
+    ) -> MermaidRenderResult? {
+        MermaidRenderCache.shared.get(MermaidCacheKey(source: code, options: options, format: format))
     }
 
     /// Run `operation`, returning its value if it finishes within `seconds`,
