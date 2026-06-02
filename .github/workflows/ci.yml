@@ -27,3 +27,52 @@ jobs:
 
       - name: Run Tests
         run: swift test
+
+  native-ffi:
+    name: Native Mermaid FFI gates
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install cbindgen + cargo-audit
+        run: cargo install cbindgen --version '^0.27' cargo-audit --locked
+
+      - name: cbindgen header-drift gate
+        working-directory: rust/mermaid-ffi
+        run: |
+          cbindgen --config cbindgen.toml --crate mermaid-ffi --output /tmp/mmdr.h
+          diff -u include/mmdr.h /tmp/mmdr.h \
+            || { echo "::error::mmdr.h drift — regenerate and bump MmdrResult.abi_version if the layout changed"; exit 1; }
+
+      - name: Zero-filesystem-font-I/O grep gate (F1-AC6, link graph)
+        run: |
+          # The wrapper PNG path and the fork measurer must contain NO reachable
+          # system-font / fs-cache calls; resvg/usvg must stay text-only so
+          # system-fonts/fontconfig never enter the link graph (v7-MF1).
+          if grep -rnE '(^|[^/[:alnum:]])(load_system_fonts|fs::read|fs::write|fs::read_to_string|cache_paths)\b' \
+               rust/mermaid-ffi/src \
+               | grep -vE '^\s*//|^[^:]+:[0-9]+:\s*//|//[!/]'; then
+            echo "::error::reachable filesystem/system-font call in the FFI wrapper"; exit 1
+          fi
+          grep -qE 'resvg = \{[^}]*default-features = false[^}]*features = \["text"\]' rust/mermaid-ffi/Cargo.toml \
+            || { echo "::error::resvg must be default-features=false features=[text]"; exit 1; }
+          grep -qE 'usvg = \{[^}]*default-features = false[^}]*features = \["text"\]' rust/mermaid-ffi/Cargo.toml \
+            || { echo "::error::usvg must be default-features=false features=[text]"; exit 1; }
+
+      - name: FFI tests + clippy
+        working-directory: rust/mermaid-ffi
+        run: |
+          cargo test
+          cargo clippy --all-targets -- -D warnings
+
+      - name: cargo audit
+        working-directory: rust/mermaid-ffi
+        run: cargo audit
+
+      # NOTE: the xcframework is a build product, NOT committed during
+      # development (built on demand via scripts/build-xcframework.sh). The
+      # committed-artifact SHA-256 integrity gate (PRD §4.4/§4.5.1 NF-04) is
+      # added back when the packaging strategy (local-path Git-LFS vs remote
+      # release-asset URL) is chosen at the packaging phase.

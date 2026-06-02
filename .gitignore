@@ -1,5 +1,9 @@
 .DS_Store
 /.build
+# Build product: the locally-built MermaidFFI xcframework + zip/sha256/provenance.
+# Like any compilation output it is NOT committed during development; how it ships
+# (local-path Git-LFS vs remote release-asset URL) is decided at the packaging phase.
+/Artifacts/
 /Packages
 xcuserdata/
 DerivedData/
