@@ -156,21 +156,19 @@ public struct MermaidNativeView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
     }
 
-    /// Accessibility label for the diagram (F7). Task 14 refines this with
-    /// diagram-type + title extraction; for now it announces a diagram and its
-    /// source so the element is never unlabeled.
+    /// Accessibility label for the diagram (F7-AC1/AC4). On success it announces
+    /// the diagram type and its title (or trimmed source); other states announce
+    /// the failure with the source for context.
     private var accessibilityLabel: String {
-        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
-        let snippet = trimmed.count > 500 ? String(trimmed.prefix(500)) + "…" : trimmed
         switch result {
         case .success:
-            return "Mermaid diagram: \(snippet)"
+            return MermaidAccessibility.label(for: code)
         case .none:
             return "Rendering Mermaid diagram"
         case .unsupported:
-            return "Unsupported Mermaid diagram: \(snippet)"
+            return "Unsupported \(MermaidAccessibility.label(for: code))"
         case .parseError, .renderError:
-            return "Mermaid diagram failed to render: \(snippet)"
+            return "Failed to render \(MermaidAccessibility.label(for: code))"
         }
     }
 
