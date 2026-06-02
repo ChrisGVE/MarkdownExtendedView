@@ -175,13 +175,10 @@ public struct MermaidNativeView: View {
     // MARK: - Rendering
 
     private func renderOffMain() async {
-        let code = self.code
-        let format = self.format
         let options = ThemeMapper.options(for: theme, colorScheme: colorScheme)
-        let rendered = await Task.detached(priority: .userInitiated) {
-            MermaidNativeRenderer.render(code: code, format: format, options: options)
-        }.value
-        result = rendered
+        // The guard applies the source-size cap, the FFI node cap (off-actor),
+        // and the perceived-latency timeout (Task 15).
+        result = await MermaidRenderGuard.render(code: code, format: format, options: options)
     }
 
     /// Wrap PNG `Data` in a SwiftUI `Image` per platform.
