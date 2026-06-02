@@ -241,86 +241,19 @@ final class MermaidTests: XCTestCase {
         XCTAssertTrue(codeBlock.code.contains("stateDiagram"))
     }
 
-    // MARK: - Security Tests
-
-    func testGeneratedHTMLEscapesScriptInjection() {
-        let malicious = "graph TD; A-->B<script>alert(1)</script>"
-        let html = generateHTML(for: malicious)
-
-        // The injected script must not survive as live markup.
-        XCTAssertFalse(
-            html.contains("<script>alert(1)</script>"),
-            "raw <script> from diagram source must be HTML-escaped"
-        )
-        // It must appear in escaped form inside the diagram container.
-        XCTAssertTrue(
-            html.contains("&lt;script&gt;alert(1)&lt;/script&gt;"),
-            "diagram source should be HTML-escaped, got: \(html)"
-        )
-    }
-
-    func testGeneratedHTMLEscapesAngleBracketsAndAmpersands() {
-        let html = generateHTML(for: "A & B < C > D")
-        XCTAssertTrue(html.contains("A &amp; B &lt; C &gt; D"))
-    }
-
-    func testGeneratedHTMLUsesStrictSecurityLevel() {
-        let html = generateHTML(for: "graph TD; A-->B")
-        XCTAssertTrue(html.contains("securityLevel: 'strict'"), "must use strict security level")
-        XCTAssertFalse(html.contains("securityLevel: 'loose'"), "loose security level is unsafe")
-    }
-
-    func testGeneratedHTMLDisablesHTMLLabels() {
-        let html = generateHTML(for: "graph TD; A-->B")
-        XCTAssertTrue(html.contains("htmlLabels: false"), "HTML labels must be disabled under strict mode")
-    }
-
-    func testAmpersandEscapedBeforeOtherEntities() {
-        // Ensure no double-escaping: "&lt;" in source becomes "&amp;lt;", not "&lt;".
-        let html = generateHTML(for: "&lt;")
-        XCTAssertTrue(html.contains("&amp;lt;"))
-    }
-
-    // MARK: - Supply-Chain Hardening Tests (task 6)
-
-    func testMermaidScriptIsPinnedToExactVersion() {
-        let html = generateHTML(for: "graph TD; A-->B")
-        XCTAssertTrue(html.contains("mermaid@\(MermaidAsset.version)/dist/mermaid.min.js"),
-                      "Mermaid script must be pinned to an exact, immutable version")
-        XCTAssertFalse(html.contains("npm/mermaid/dist"),
-                       "must not load the mutable unpinned asset path")
-    }
-
-    func testMermaidVersionIsFullyQualified() {
-        // A fully-qualified version is immutable on jsDelivr; ranges like "11" are not.
-        let components = MermaidAsset.version.split(separator: ".")
-        XCTAssertEqual(components.count, 3, "version must be MAJOR.MINOR.PATCH")
-        XCTAssertTrue(components.allSatisfy { Int($0) != nil }, "version components must be numeric")
-    }
-
-    func testMermaidScriptHasSubresourceIntegrity() {
-        let html = generateHTML(for: "graph TD; A-->B")
-        XCTAssertTrue(html.contains("integrity=\"\(MermaidAsset.integrity)\""),
-                      "pinned script must carry an SRI hash")
-        XCTAssertTrue(MermaidAsset.integrity.hasPrefix("sha384-"), "SRI hash should be sha384")
-        XCTAssertTrue(html.contains("crossorigin=\"anonymous\""),
-                      "SRI requires crossorigin on the script element")
-    }
-
-    func testGeneratedHTMLHasRestrictiveCSP() {
-        let html = generateHTML(for: "graph TD; A-->B")
-        XCTAssertTrue(html.contains("Content-Security-Policy"), "must declare a CSP")
-        XCTAssertTrue(html.contains("default-src 'none'"),
-                      "CSP must deny by default and only allow what is needed")
-        XCTAssertTrue(html.contains("script-src 'unsafe-inline' https://cdn.jsdelivr.net"),
-                      "CSP must restrict scripts to inline init plus the pinned CDN host")
-    }
-
-    func testGeneratedHTMLSignalsRenderState() {
-        // The page must signal success/failure so the native layer can show a
-        // retry fallback (task 7).
-        let html = generateHTML(for: "graph TD; A-->B")
-        XCTAssertTrue(html.contains("data-mermaid"), "render state must be exposed for failure detection")
-        XCTAssertTrue(html.contains("mermaid.run("), "explicit run is needed to observe completion")
-    }
+    // MARK: - WebView/HTML tests removed in Phase 9 (Task 12, F4)
+    //
+    // The WebKit path — `generateHTML`, `MermaidAsset` (pinned mermaid.js + SRI),
+    // the CSP, and the `data-mermaid` render-state signalling — was removed when
+    // the package went WebView-free. The 10 tests that exercised it
+    // (HTML-escaping, strict security level, htmlLabels, version pinning, SRI,
+    // CSP, render-state) no longer have a subject. Their behavioral concern —
+    // untrusted diagram source can never trigger code execution or network
+    // egress — is now covered NATIVELY: the Rust renderer is not a script engine
+    // (S5.2), and the egress guards live in `MarkdownExtendedViewMermaidNative`
+    // (SVGSanitizerTests for the vector path; raster.rs T2b for the PNG path).
+    // The parser/detection/flag tests above are unchanged.
+    //
+    // Net core test-count change: 272 → 262 (10 WebView-only tests removed); the
+    // removed security coverage moved to the native target (no coverage loss).
 }

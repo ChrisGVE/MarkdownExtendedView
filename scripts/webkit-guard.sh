@@ -8,8 +8,8 @@
 # usage from creeping into the library while the native path is developed, and
 # becomes the enforcement that the WebKit path is fully gone after Phase 9.
 #
-# Until Phase 9 (WebView removal), the WebKit import is permitted ONLY in
-# MermaidView.swift. After Phase 9, set ALLOWED to empty to forbid it anywhere.
+# Phase 9 (Task 12) removed the WebKit path entirely, so WebKit is now forbidden
+# ANYWHERE in Sources/ — the package is WebView-free (F4-AC1).
 #
 # Usage: ./scripts/webkit-guard.sh
 # Exit:  0 = clean, 1 = unauthorized WebKit usage found.
@@ -17,8 +17,8 @@
 
 set -euo pipefail
 
-# Files still permitted to import WebKit (empty after Phase 9).
-ALLOWED=("Sources/MarkdownExtendedView/Views/MermaidView.swift")
+# Files permitted to import WebKit — empty after Phase 9 (WebView removed).
+ALLOWED=()
 
 if [ ! -f "Package.swift" ]; then
 	echo "Error: must be run from the package root" >&2
@@ -27,6 +27,8 @@ fi
 
 is_allowed() {
 	local f="$1"
+	# No files are permitted to import WebKit after Phase 9.
+	[ "${#ALLOWED[@]}" -eq 0 ] && return 1
 	for a in "${ALLOWED[@]}"; do
 		[ "$f" = "$a" ] && return 0
 	done

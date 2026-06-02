@@ -6,10 +6,10 @@ green-baseline anchors the epic must preserve or improve.
 
 | Metric | Baseline | Source |
 | --- | --- | --- |
-| Full `swift test` (core-only) | 272 tests, 0 failures, none ignored | `swift test` |
-| `MEV_MERMAID_NATIVE=1 swift test` | 278 tests (272 core + 6 native FFI round-trip/status, Phase 6 / Task 9), 0 failures, none ignored | requires the on-demand xcframework |
+| Full `swift test` (core-only) | 269 tests, 0 failures, none ignored (Phase-0 baseline was 272; +7 registry-seam tests in Task 11, −10 WebView/HTML tests in Task 12) | `swift test` |
+| `MEV_MERMAID_NATIVE=1 swift test` | native product + tests included (FFI adapter, sanitizer, theme, a11y, DoS, cache, snapshots), 0 failures, none ignored | requires the on-demand xcframework |
 | `MermaidTests.swift` count | 22 tests | `grep -c 'func test' Tests/MarkdownExtendedViewTests/MermaidTests.swift` |
-| WebKit imports | exactly 1, in `Sources/MarkdownExtendedView/Views/MermaidView.swift` | `scripts/webkit-guard.sh` |
+| WebKit imports | **0 after Phase 9 (Task 12)** — WebView removed; forbidden anywhere | `scripts/webkit-guard.sh` (ALLOWED empty) |
 | Deployment floor | iOS 16 / macOS 13 (do not raise) | `Package.swift` |
 
 Date: 2026-05-31. Branch: `dev`.

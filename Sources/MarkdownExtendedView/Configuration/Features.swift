@@ -71,8 +71,10 @@ public struct MarkdownFeatures: OptionSet, Sendable {
 
     /// Enable Mermaid diagram rendering.
     ///
-    /// When enabled, ```mermaid code blocks are rendered as diagrams
-    /// using a WKWebView. This requires loading the Mermaid.js library.
+    /// When enabled, ```mermaid code blocks are rendered as diagrams by the
+    /// native, WebView-free renderer when one is registered (via the optional
+    /// `MarkdownExtendedViewMermaidNative` product's `enableNativeMermaidRendering()`);
+    /// otherwise the diagram source is shown. No network access, no JavaScript.
     public static let mermaid = MarkdownFeatures(rawValue: 1 << 2)
 
     /// Enable syntax highlighting for code blocks.
