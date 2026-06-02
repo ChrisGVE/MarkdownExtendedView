@@ -29,7 +29,7 @@ xcframework builds against the union:
 | `fix/sequence-par-alt` | sequenceDiagram `par`/`alt`/`loop` fidelity (MVP type) | #102, #103 |
 | `fix/panic-guards` | Panic hardening (`catch_unwind`, node-cap) | #37, #95 |
 | `fix/viewbox-sizing` | viewBox / intrinsic sizing | #83 |
-| `fix/measurer-poison-recovery` | NF-03: ignore-poison idiom on the `TEXT_MEASURER` mutex so a transient panic cannot permanently degrade text metrics to the heuristic | upstream PR pending Chris's go-ahead |
+| `fix/measurer-poison-recovery` | NF-03: ignore-poison idiom on the `TEXT_MEASURER` mutex so a transient panic cannot permanently degrade text metrics to the heuristic | upstream PR #107 |
 
 ## Known issues at this pin
 
