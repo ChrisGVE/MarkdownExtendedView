@@ -101,11 +101,8 @@ public enum MermaidNativeRenderer {
         // `UInt32` raw value — convert each constant to `Int32` to match.
         switch value.status {
         case Int32(MmdrStatus_Ok.rawValue):
-            return .success(
-                payload: decodePayload(value, format: format),
-                // F6 viewBox sizing lands in Task 16; until then, unknown.
-                intrinsicSize: .zero
-            )
+            let payload = decodePayload(value, format: format)
+            return .success(payload: payload, intrinsicSize: intrinsicSize(of: payload))
 
         case Int32(MmdrStatus_ErrUnsupported.rawValue):
             // Payload is the redacted "diagram type not yet supported" message;
@@ -131,6 +128,19 @@ public enum MermaidNativeRenderer {
         }
     }
 
+    /// Intrinsic size of a successful payload. SVG → its `viewBox`/`width`-
+    /// `height` (F6); PNG carries no viewBox, so `.zero` (the view sizes a PNG
+    /// from the image's own pixel aspect).
+    private static func intrinsicSize(of payload: MermaidRenderPayload) -> CGSize {
+        switch payload {
+        case let .svg(svg):
+            guard let size = SVGSizing.intrinsicSize(fromSVG: svg) else { return .zero }
+            return CGSize(width: size.width, height: size.height)
+        case .png:
+            return .zero
+        }
+    }
+
     /// Decode a successful payload per format: SVG → UTF-8 `String`, PNG → raw
     /// `Data`. Empty payload yields an empty value of the matching kind.
     private static func decodePayload(
@@ -141,18 +151,28 @@ public enum MermaidNativeRenderer {
         case .vectorSVG:
             return .svg(decodeMessage(value))
         case .rasterPNG:
-            guard let ptr = value.data_ptr, value.data_len > 0 else {
+            guard let ptr = value.data_ptr, let count = payloadCount(value) else {
                 return .png(Data())
             }
-            return .png(Data(bytes: ptr, count: Int(value.data_len)))
+            return .png(Data(bytes: ptr, count: count))
         }
     }
 
     /// Decode the payload bytes as a UTF-8 string (SVG text or a redacted
-    /// error message). Returns "" on a null/empty/invalid-UTF-8 payload.
+    /// error message). Returns "" on a null/empty/oversized/invalid payload.
     private static func decodeMessage(_ value: MmdrResult) -> String {
-        guard let ptr = value.data_ptr, value.data_len > 0 else { return "" }
-        let buffer = UnsafeBufferPointer(start: ptr, count: Int(value.data_len))
+        guard let ptr = value.data_ptr, let count = payloadCount(value) else { return "" }
+        let buffer = UnsafeBufferPointer(start: ptr, count: count)
         return String(decoding: buffer, as: UTF8.self)
+    }
+
+    /// Validate `data_len` (a `u64` from the binary) and narrow it to `Int`.
+    /// Returns nil for an empty payload or one larger than `Int.max` — a
+    /// `UInt64 → Int` conversion that overflowed would trap, so it is rejected
+    /// defensively rather than trusted.
+    private static func payloadCount(_ value: MmdrResult) -> Int? {
+        let len = value.data_len
+        guard len > 0, len <= UInt64(Int.max) else { return nil }
+        return Int(len)
     }
 }

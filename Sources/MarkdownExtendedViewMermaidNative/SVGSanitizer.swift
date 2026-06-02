@@ -47,9 +47,11 @@ public enum SVGSanitizer {
     public static func sanitize(_ svg: String) -> String {
         var result = svg
         result = stripScripts(result)
+        result = stripForeignObjects(result)
         result = cleanStyleBlocks(result)
         result = neutralizeImageHrefs(result)
         result = neutralizeUseHrefs(result)
+        result = neutralizeAnchorHrefs(result)
         result = stripEventHandlers(result)
         result = neutralizeStyleAttributeURLs(result)
         return result
@@ -57,27 +59,48 @@ public enum SVGSanitizer {
 
     // MARK: - Passes
 
-    /// (2) Remove `<script>…</script>` and self-closing `<script .../>`.
+    /// A safe inline-resource value: a `data:image/*` URI (but never the
+    /// script-capable `data:image/svg+xml`, which can carry its own handlers).
+    private static func isSafeDataImage(_ value: String) -> Bool {
+        let v = value.lowercased()
+        return v.hasPrefix("data:image/") && !v.hasPrefix("data:image/svg+xml")
+    }
+
+    /// A same-document fragment reference (`#id`) — never external.
+    private static func isLocalFragment(_ value: String) -> Bool {
+        value.hasPrefix("#")
+    }
+
+    /// (2) Remove `<script>…</script>`, self-closing `<script .../>`, and any
+    /// residual bare-open `<script …>` (malformed but adversarial) tag.
     private static func stripScripts(_ svg: String) -> String {
         var s = replaceAll(in: svg, pattern: "<script\\b[\\s\\S]*?</script\\s*>", with: "")
         s = replaceAll(in: s, pattern: "<script\\b[^>]*/\\s*>", with: "")
+        s = replaceAll(in: s, pattern: "<script\\b[^>]*>", with: "")
         return s
     }
 
-    /// (5a) Within each `<style>…</style>` block, strip `url(<non-data>)` tokens.
+    /// Remove `<foreignObject>…</foreignObject>` (can embed arbitrary HTML).
+    private static func stripForeignObjects(_ svg: String) -> String {
+        var s = replaceAll(in: svg, pattern: "<foreignObject\\b[\\s\\S]*?</foreignObject\\s*>", with: "")
+        s = replaceAll(in: s, pattern: "<foreignObject\\b[^>]*/\\s*>", with: "")
+        return s
+    }
+
+    /// (5a) Within each `<style>…</style>` block, strip `url(<non-data>)` tokens
+    /// and any `@import` rule (which can pull external CSS without `url()`).
     private static func cleanStyleBlocks(_ svg: String) -> String {
         rewriteMatches(in: svg, pattern: "<style\\b[^>]*>[\\s\\S]*?</style\\s*>") { block in
-            neutralizeCSSURLs(in: block)
+            stripCSSImports(neutralizeCSSURLs(in: block))
         }
     }
 
-    /// (1) For every `<image …>` start tag, drop any `href`/`xlink:href` whose
-    /// value is not a `data:` URI.
+    /// (1) For every `<image …>`/`<feImage …>` start tag, drop any
+    /// `href`/`xlink:href` that is not a safe `data:image/*` URI (CWE-918). The
+    /// SVG filter primitive `<feImage>` is an independent external-load vector.
     private static func neutralizeImageHrefs(_ svg: String) -> String {
-        rewriteMatches(in: svg, pattern: "<image\\b[^>]*>") { tag in
-            neutralizeHrefs(in: tag) { value in
-                value.hasPrefix("data:")  // keep only data: images
-            }
+        rewriteMatches(in: svg, pattern: "<(?:image|feImage)\\b[^>]*>") { tag in
+            neutralizeHrefs(in: tag, keep: isSafeDataImage)
         }
     }
 
@@ -85,24 +108,32 @@ public enum SVGSanitizer {
     /// not a local `#fragment` reference (blocks external-document `<use>`).
     private static func neutralizeUseHrefs(_ svg: String) -> String {
         rewriteMatches(in: svg, pattern: "<use\\b[^>]*>") { tag in
-            neutralizeHrefs(in: tag) { value in
-                value.hasPrefix("#")  // keep only same-document fragment refs
-            }
+            neutralizeHrefs(in: tag, keep: isLocalFragment)
         }
     }
 
-    /// (3) Remove every `on<event>="…"` / `on<event>='…'` attribute.
+    /// For every `<a …>` start tag, drop any `href`/`xlink:href` that is not a
+    /// local `#fragment` — Mermaid's `click NodeId "URL"` directive emits an
+    /// `<a href="URL">` wrapper, so untrusted source can otherwise inject an
+    /// external/`javascript:` navigation target (CWE-601/CWE-918/CWE-79).
+    private static func neutralizeAnchorHrefs(_ svg: String) -> String {
+        rewriteMatches(in: svg, pattern: "<a\\b[^>]*>") { tag in
+            neutralizeHrefs(in: tag, keep: isLocalFragment)
+        }
+    }
+
+    /// (3) Remove every `on<event>=…` attribute — quoted OR unquoted value.
     private static func stripEventHandlers(_ svg: String) -> String {
         replaceAll(
             in: svg,
-            pattern: "\\s+on[a-zA-Z]+\\s*=\\s*(\"[^\"]*\"|'[^']*')",
+            pattern: "\\s+on[a-zA-Z]+\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)",
             with: ""
         )
     }
 
-    /// (5b) Strip `url(<non-data>)` tokens inside inline `style="…"` / `style='…'`.
+    /// (5b) Strip `url(<non-data>)` inside inline `style=…` (quoted OR unquoted).
     private static func neutralizeStyleAttributeURLs(_ svg: String) -> String {
-        rewriteMatches(in: svg, pattern: "\\bstyle\\s*=\\s*(\"[^\"]*\"|'[^']*')") { attr in
+        rewriteMatches(in: svg, pattern: "\\bstyle\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)") { attr in
             neutralizeCSSURLs(in: attr)
         }
     }
@@ -111,31 +142,38 @@ public enum SVGSanitizer {
 
     /// Drop `href` and `xlink:href` attributes within a single start-tag string
     /// whose value fails `keep`. The whole attribute (name + value) is removed
-    /// so no dangling reference remains.
+    /// so no dangling reference remains. Handles quoted and unquoted values.
     private static func neutralizeHrefs(
         in tag: String,
         keep: (String) -> Bool
     ) -> String {
         rewriteMatches(
             in: tag,
-            pattern: "\\s+(?:xlink:href|href)\\s*=\\s*(\"[^\"]*\"|'[^']*')"
+            pattern: "\\s+(?:xlink:href|href)\\s*=\\s*(\"[^\"]*\"|'[^']*'|[^\\s>]+)"
         ) { attr in
             let value = attributeValue(from: attr)
             return keep(value) ? attr : ""
         }
     }
 
-    /// Replace `url(<scheme>…)` with `url()` when the referenced target is not a
-    /// `data:` URI (covers `http(s)://`, `file://`, protocol-relative `//`, and
-    /// any other non-`data:` reference); `data:` and bare `#fragment` survive.
+    /// Replace `url(<target>)` with `url()` unless the target is a safe
+    /// `data:image/*` URI or a local `#fragment`; everything else (http(s)://,
+    /// file://, protocol-relative `//`, `data:text/html`, …) is neutralized.
     private static func neutralizeCSSURLs(in css: String) -> String {
         rewriteMatches(in: css, pattern: "url\\(\\s*(['\"]?)([^'\")]*)\\1\\s*\\)") { token in
             let inner = cssURLTarget(from: token)
-            if inner.hasPrefix("data:") || inner.hasPrefix("#") {
+            if isSafeDataImage(inner) || isLocalFragment(inner) {
                 return token
             }
             return "url()"
         }
+    }
+
+    /// Remove `@import …;` rules (and a trailing unterminated `@import`).
+    private static func stripCSSImports(_ css: String) -> String {
+        var s = replaceAll(in: css, pattern: "@import\\b[^;]*;", with: "")
+        s = replaceAll(in: s, pattern: "@import\\b[^;<]*", with: "")
+        return s
     }
 
     /// Extract the quoted/unquoted value from an `name="value"` attribute slice.

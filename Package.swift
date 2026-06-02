@@ -93,7 +93,10 @@ if buildNative {
         ),
         .testTarget(
             name: "MarkdownExtendedViewMermaidNativeTests",
-            dependencies: ["MarkdownExtendedViewMermaidNative"]
+            dependencies: ["MarkdownExtendedViewMermaidNative"],
+            // Snapshot references are read by path via #filePath, not bundled;
+            // exclude them so SPM does not warn about unhandled files.
+            exclude: ["Fixtures"]
         ),
     ]
 }

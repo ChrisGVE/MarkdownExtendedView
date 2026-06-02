@@ -103,7 +103,12 @@ public enum SVGSizing {
     private static func leadingNumber(_ s: String) -> Double? {
         let trimmed = s.trimmingCharacters(in: .whitespaces)
         var end = trimmed.startIndex
-        while end < trimmed.endIndex, trimmed[end].isNumber || trimmed[end] == "." || trimmed[end] == "-" {
+        while end < trimmed.endIndex {
+            let c = trimmed[end]
+            // A `-` is only valid as the very first character (a sign), never
+            // mid-token; `.` and digits continue the number.
+            let signOK = c == "-" && end == trimmed.startIndex
+            guard c.isNumber || c == "." || signOK else { break }
             end = trimmed.index(after: end)
         }
         return Double(trimmed[..<end])

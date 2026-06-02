@@ -186,14 +186,19 @@ mod tests {
         // the injected embedded `fontdb` lays out text with ZERO filesystem font
         // I/O (`load_system_fonts()` never fires; no `~/.cache` read/write).
         let _guard = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        // Force the embedded fontdb to initialize BEFORE the sentinel $HOME is
+        // set, so warming is order-independent (not reliant on svg_of warming it).
+        warm();
         let svg = svg_of("flowchart LR\nAlpha-->Beta"); // node labels = text
-        let baseline = rasterize_png(&svg, &Theme::modern()).unwrap();
+        let baseline = rasterize_png(&svg, &Theme::modern());
 
         let old_home = std::env::var_os("HOME");
         let old_xdg = std::env::var_os("XDG_CACHE_HOME");
         std::env::set_var("HOME", "/nonexistent/mmdr-sentinel");
         std::env::set_var("XDG_CACHE_HOME", "/nonexistent/mmdr-sentinel/cache");
-        let under_sentinel = rasterize_png(&svg, &Theme::modern()).unwrap();
+        // Capture the Result WITHOUT unwrapping, then ALWAYS restore the env
+        // before asserting — a panic here must not leave the process polluted.
+        let under_sentinel = rasterize_png(&svg, &Theme::modern());
         match old_home {
             Some(v) => std::env::set_var("HOME", v),
             None => std::env::remove_var("HOME"),
@@ -203,6 +208,8 @@ mod tests {
             None => std::env::remove_var("XDG_CACHE_HOME"),
         }
 
+        let baseline = baseline.unwrap();
+        let under_sentinel = under_sentinel.unwrap();
         assert_eq!(
             &under_sentinel[..8],
             &[0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A]

@@ -67,7 +67,10 @@ public final class MermaidRenderCache: @unchecked Sendable {
     private let maxEntries: Int
     private let state: OSAllocatedUnfairLock<State>
 
-    public init(maxEntries: Int = 32) {
+    // Internal: render calls use the `shared` singleton. A standalone instance
+    // (constructed and then discarded) would never be consulted, so the
+    // initializer is not public. Tests construct isolated caches via @testable.
+    init(maxEntries: Int = 32) {
         self.maxEntries = max(1, maxEntries)
         self.state = OSAllocatedUnfairLock(initialState: State())
     }

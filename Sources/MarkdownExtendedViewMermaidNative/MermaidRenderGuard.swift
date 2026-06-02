@@ -68,18 +68,18 @@ public enum MermaidRenderGuard {
         }
 
         // Layers 2 + 3: off-actor FFI render (node cap inside) raced against
-        // the perceived-latency deadline.
-        let result = await withTimeout(seconds: timeoutSeconds) {
+        // the perceived-latency deadline. A nil outcome means the deadline
+        // elapsed first (detected structurally — no string match).
+        let outcome = await withDeadline(seconds: timeoutSeconds) {
             await Task.detached(priority: .userInitiated) {
                 MermaidNativeRenderer.render(code: code, format: format, options: options)
             }.value
-        } onTimeout: {
-            .renderError(message: "Render timed out.")
         }
 
-        // Cache only deterministic outcomes; a transient timeout must not stick.
-        if case .renderError(let message) = result, message == "Render timed out." {
-            return result
+        guard let result = outcome else {
+            // Transient timeout: surface it but NEVER cache it, so a one-off
+            // slow render cannot make a diagram permanently fail for the session.
+            return .renderError(message: "Render timed out.")
         }
         MermaidRenderCache.shared.set(key, result)
         return result
@@ -97,29 +97,40 @@ public enum MermaidRenderGuard {
     }
 
     /// Run `operation`, returning its value if it finishes within `seconds`,
-    /// else the value of `onTimeout`. The losing child is cancelled (the
-    /// synchronous FFI render cannot be interrupted and runs to completion in
-    /// the background — honest scope, §4.3).
+    /// else `nil` (the deadline elapsed first). The losing child is cancelled
+    /// (the synchronous FFI render cannot be interrupted and runs to completion
+    /// in the background — honest scope, §4.3). A non-finite or non-positive
+    /// `seconds` is treated as "no deadline" (operation always wins).
+    static func withDeadline<T: Sendable>(
+        seconds: Double,
+        operation: @escaping @Sendable () async -> T
+    ) async -> T? {
+        // Clamp: a public caller could pass .infinity/.nan/negative; UInt64(.nan)
+        // / UInt64(.infinity) would trap. Non-finite/≤0 ⇒ effectively unbounded.
+        let nanos: UInt64 = seconds.isFinite && seconds > 0
+            ? UInt64(min(seconds, 86_400) * 1_000_000_000)
+            : UInt64.max
+        return await withTaskGroup(of: T?.self) { group in
+            group.addTask { await operation() }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: nanos)
+                return nil
+            }
+            defer { group.cancelAll() }
+            // The first child to finish decides the outcome (value, or nil = timeout).
+            if let next = await group.next() {
+                return next
+            }
+            return nil
+        }
+    }
+
+    /// Convenience: `operation`'s value, or `onTimeout()` if the deadline elapses.
     static func withTimeout<T: Sendable>(
         seconds: Double,
         operation: @escaping @Sendable () async -> T,
         onTimeout: @Sendable () -> T
     ) async -> T {
-        await withTaskGroup(of: T?.self) { group in
-            group.addTask { await operation() }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(max(0, seconds) * 1_000_000_000))
-                return nil
-            }
-            defer { group.cancelAll() }
-            // The first child to finish decides the outcome.
-            while let next = await group.next() {
-                if let value = next {
-                    return value // operation finished first
-                }
-                return onTimeout() // sleep elapsed first
-            }
-            return onTimeout()
-        }
+        await withDeadline(seconds: seconds, operation: operation) ?? onTimeout()
     }
 }

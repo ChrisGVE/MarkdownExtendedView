@@ -113,8 +113,17 @@ public enum ThemeMapper {
     }
 
     private static func resolveSRGB(_ color: NSColor) -> RGBA {
-        let c = color.usingColorSpace(.sRGB) ?? color
-        return (c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent)
+        if let c = color.usingColorSpace(.sRGB) {
+            return (c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent)
+        }
+        // sRGB conversion can fail for pattern/catalog colors. Reading
+        // `redComponent` on a non-RGB NSColor raises an exception, so fall back
+        // to a grayscale read (and a final opaque-black default).
+        var w: CGFloat = 0, a: CGFloat = 1
+        if color.usingColorSpace(.genericGray)?.getWhite(&w, alpha: &a) != nil {
+            return (w, w, w, a)
+        }
+        return (0, 0, 0, 1)
     }
     #else
     private static func components(_ color: Color, _ scheme: ColorScheme) -> RGBA {

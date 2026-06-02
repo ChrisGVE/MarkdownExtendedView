@@ -94,6 +94,58 @@ final class SVGSanitizerTests: XCTestCase {
         XCTAssertFalse(out.lowercased().contains("onmouseover"))
     }
 
+    // MARK: - Hardening added after the Round-1 audit
+
+    func testAnchorClickHrefNeutralized() {
+        // Mermaid `click NodeId "URL"` emits <a href="URL">; external + javascript:
+        // targets must be dropped, local #fragment kept (CWE-601/918/79).
+        let svg = ##"<svg><a href="https://evil.example/x"><rect/></a><a xlink:href="javascript:alert(1)"/><a href="#node1"/></svg>"##
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.contains("evil.example"))
+        XCTAssertFalse(out.lowercased().contains("javascript:"))
+        XCTAssertTrue(out.contains("#node1"), "local fragment anchor preserved")
+    }
+
+    func testUnquotedEventHandlerStripped() {
+        let out = SVGSanitizer.sanitize("<svg><rect onload=alert(1) onclick=steal()/></svg>")
+        XCTAssertFalse(out.lowercased().contains("onload"))
+        XCTAssertFalse(out.lowercased().contains("onclick"))
+    }
+
+    func testCSSImportInStyleBlockStripped() {
+        let svg = #"<svg><style>@import "https://evil.example/x.css"; .a{fill:red}</style></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.contains("evil.example"))
+        XCTAssertFalse(out.lowercased().contains("@import"))
+    }
+
+    func testFeImageExternalHrefNeutralized() {
+        let svg = #"<svg><filter><feImage href="https://evil.example/x.png"/></filter></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.contains("evil.example"))
+    }
+
+    func testForeignObjectStripped() {
+        let svg = #"<svg><foreignObject><body onload="x()">hi</body></foreignObject></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.lowercased().contains("<foreignobject"))
+        XCTAssertFalse(out.lowercased().contains("onload"))
+    }
+
+    func testDataTextHtmlAndDataSvgImageRejected() {
+        // `data:` is not a blanket allow: only data:image/* (non-svg) survives.
+        let svg = #"<svg><image href="data:text/html,<script>alert(1)</script>"/><image xlink:href="data:image/svg+xml,<svg onload=x>"/></svg>"#
+        let out = SVGSanitizer.sanitize(svg)
+        XCTAssertFalse(out.lowercased().contains("data:text/html"))
+        XCTAssertFalse(out.lowercased().contains("data:image/svg+xml"))
+    }
+
+    func testBareOpenScriptStripped() {
+        let out = SVGSanitizer.sanitize(#"<svg><script src="https://evil.example/x.js"></svg>"#)
+        XCTAssertFalse(out.lowercased().contains("<script"))
+        XCTAssertFalse(out.contains("evil.example"))
+    }
+
     func testCleanSVGPassesThroughUnchangedInSubstance() {
         // A benign mmdr-style SVG must keep its geometry and data: image.
         let svg = """

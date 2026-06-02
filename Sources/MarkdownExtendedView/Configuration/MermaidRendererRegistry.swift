@@ -60,7 +60,10 @@ public final class MermaidRendererRegistry: Sendable {
 
     private let slot = OSAllocatedUnfairLock<(any MermaidRendering)?>(initialState: nil)
 
-    public init() {}
+    // Internal: consumers use the `shared` singleton. A standalone instance
+    // would never be consulted by `MermaidView` (which reads `shared`), so a
+    // public initializer would be a silent-misconfiguration footgun.
+    init() {}
 
     /// Register (or replace) the native renderer. Idempotent; safe from any
     /// thread. The canonical opt-in is the native product's
@@ -99,6 +102,12 @@ public extension EnvironmentValues {
 public extension View {
     /// Inject a native Mermaid renderer for this view subtree, overriding the
     /// process-wide registry (PRD §4.6 env override).
+    ///
+    /// Passing a renderer takes precedence over `MermaidRendererRegistry.shared`
+    /// for the subtree. Passing `nil` means "no per-subtree opinion" — the view
+    /// falls back to the process-wide registry (NOT a way to force the
+    /// source-text default while a renderer is registered; that is intentionally
+    /// not a state today).
     func mermaidRenderer(_ renderer: (any MermaidRendering)?) -> some View {
         environment(\.mermaidRenderer, renderer)
     }

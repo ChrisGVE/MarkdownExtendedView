@@ -43,7 +43,9 @@ import SwiftUI
 /// - **Links**: On iOS, opens URLs in an in-app browser (SFSafariViewController).
 ///   On macOS, opens in the default browser.
 /// - **Images**: Loads images from remote URLs using AsyncImage.
-/// - **Mermaid**: Renders diagrams using a WebView.
+/// - **Mermaid**: Renders diagrams with the native, WebView-free renderer when
+///   the optional `MarkdownExtendedViewMermaidNative` product is registered;
+///   otherwise shows the diagram source. No network access, no JavaScript.
 public struct MarkdownFeatures: OptionSet, Sendable {
 
     public let rawValue: Int

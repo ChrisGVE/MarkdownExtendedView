@@ -41,8 +41,9 @@ public enum MermaidRenderPayload: Sendable, Hashable {
 /// The result of a native Mermaid render, mapped from the FFI `MmdrStatus`
 /// (PRD §4.6). The status→case mapping is identical for both render functions.
 public enum MermaidRenderResult: Sendable {
-    /// `MmdrStatus_Ok` (0). `intrinsicSize` is `.zero` until §F6 viewBox sizing
-    /// lands (Task 16); the adapter does not parse the SVG geometry yet.
+    /// `MmdrStatus_Ok` (0). For `.svg`, `intrinsicSize` is the SVG's
+    /// `viewBox`/`width`-`height` (F6); for `.png` it is `.zero` (no viewBox —
+    /// size a PNG from the image's own pixel aspect).
     case success(payload: MermaidRenderPayload, intrinsicSize: CGSize)
     /// `MmdrStatus_ErrUnsupported` (5) — diagram type outside the MVP allowlist.
     case unsupported(type: String?)
