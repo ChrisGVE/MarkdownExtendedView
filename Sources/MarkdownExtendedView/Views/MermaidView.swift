@@ -57,8 +57,27 @@ struct MermaidView: View {
 
     @State private var height: CGFloat = 200
     @State private var loadFailed = false
+    @Environment(\.colorScheme) private var colorScheme
+    @Environment(\.mermaidRenderer) private var injectedRenderer
 
     var body: some View {
+        // Registered-renderer seam (PRD §4.6): an env-injected renderer takes
+        // precedence over the process-wide registry; absent both, fall back to
+        // the existing WebView path (replaced by the source-text safe default
+        // when WebKit is removed in Phase 9 / Task 12).
+        if let renderer = injectedRenderer ?? MermaidRendererRegistry.shared.current {
+            renderer.makeDiagramView(
+                code: code,
+                theme: theme,
+                colorScheme: colorScheme,
+                availableWidth: nil
+            )
+        } else {
+            webViewBody
+        }
+    }
+
+    private var webViewBody: some View {
         Group {
             if loadFailed {
                 MermaidFailureView(code: code, theme: theme) {

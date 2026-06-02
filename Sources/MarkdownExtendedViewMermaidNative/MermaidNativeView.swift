@@ -62,6 +62,8 @@ public struct MermaidNativeView: View {
             .frame(maxWidth: .infinity)
             .background(theme.codeBackgroundColor)
             .cornerRadius(8)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel(accessibilityLabel)
             .task(id: TaskKey(code: code, format: format)) {
                 await renderOffMain()
             }
@@ -77,10 +79,24 @@ public struct MermaidNativeView: View {
         case .none:
             // Render in flight — reserve the floor height to avoid a jump.
             Color.clear.frame(height: SVGSizing.minimumHeight)
-        case .some:
-            // Any non-success status: minimal source-text fallback for now
-            // (the full F2 tri-state fallback lands at Task 11).
-            fallback
+        case .unsupported:
+            // F2-AC2: diagram type outside the MVP allowlist.
+            fallback(note: "This diagram type isn't supported yet.")
+        case let .parseError(message, line, col):
+            // F2-AC1: parse error, with location when reported.
+            fallback(note: parseErrorNote(message, line: line, col: col))
+        case .renderError:
+            // F2-AC4: render/internal error (redacted) — show the source.
+            fallback(note: "Couldn't render diagram.")
+        }
+    }
+
+    private func parseErrorNote(_ message: String, line: Int?, col: Int?) -> String {
+        let base = message.isEmpty ? "Couldn't parse diagram" : message
+        switch (line, col) {
+        case let (line?, col?): return "\(base) (line \(line), column \(col))"
+        case let (line?, nil): return "\(base) (line \(line))"
+        default: return base
         }
     }
 
@@ -97,7 +113,7 @@ public struct MermaidNativeView: View {
                 // The image carries its own pixel aspect; fit to width.
                 sized(image.resizable(), aspect: nil)
             } else {
-                fallback
+                fallback(note: "Couldn't render diagram.")
             }
         }
     }
@@ -118,14 +134,43 @@ public struct MermaidNativeView: View {
         }
     }
 
-    private var fallback: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            Text(code.trimmingCharacters(in: .newlines))
-                .font(theme.codeBlockFont)
-                .foregroundColor(theme.textColor)
-                .padding(theme.codeBlockPadding)
+    /// F2 source-text fallback: a contextual note above the diagram source, in
+    /// the same chrome as a successful render. Never a crash or a blank box.
+    private func fallback(note: String) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                Image(systemName: "exclamationmark.triangle")
+                Text(note)
+            }
+            .font(theme.bodyFont)
+            .foregroundColor(theme.secondaryTextColor)
+
+            ScrollView(.horizontal, showsIndicators: false) {
+                Text(code.trimmingCharacters(in: .newlines))
+                    .font(theme.codeBlockFont)
+                    .foregroundColor(theme.textColor)
+            }
         }
+        .padding(theme.codeBlockPadding)
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// Accessibility label for the diagram (F7). Task 14 refines this with
+    /// diagram-type + title extraction; for now it announces a diagram and its
+    /// source so the element is never unlabeled.
+    private var accessibilityLabel: String {
+        let trimmed = code.trimmingCharacters(in: .whitespacesAndNewlines)
+        let snippet = trimmed.count > 500 ? String(trimmed.prefix(500)) + "…" : trimmed
+        switch result {
+        case .success:
+            return "Mermaid diagram: \(snippet)"
+        case .none:
+            return "Rendering Mermaid diagram"
+        case .unsupported:
+            return "Unsupported Mermaid diagram: \(snippet)"
+        case .parseError, .renderError:
+            return "Mermaid diagram failed to render: \(snippet)"
+        }
     }
 
     // MARK: - Rendering
