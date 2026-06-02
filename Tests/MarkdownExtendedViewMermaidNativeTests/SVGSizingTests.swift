@@ -59,6 +59,35 @@ final class SVGSizingTests: XCTestCase {
     func testDisplayHeightFloorWhenSizeUnknown() {
         XCTAssertEqual(SVGSizing.displayHeight(for: nil, availableWidth: 400), SVGSizing.minimumHeight)
     }
+
+    // MARK: - F6-AC3 (non-square) + T13 (narrow container)
+
+    func testNonSquareDiagramSizedByAspect() {
+        // Tall diagram (aspect 0.5 = 1:2): width 200 → height 400 (preserves
+        // aspect, above floor) — no squashing to square.
+        let tall = SVGIntrinsicSize(width: 100, height: 200)
+        XCTAssertEqual(tall.aspectRatio, 0.5, accuracy: 0.0001)
+        XCTAssertEqual(SVGSizing.displayHeight(for: tall, availableWidth: 200), 400, accuracy: 0.0001)
+    }
+
+    /// T13: a real ≥20-element diagram in a narrow container keeps a height at
+    /// or above the 80-pt floor (legible), and the view's aspect-fit sizing
+    /// (`aspectRatio(_:.fit)` + `maxWidth: .infinity`) bounds width to the
+    /// container — no horizontal clipping. The native path uses `.task`, never
+    /// `DispatchQueue.asyncAfter` polling (contrast: the WebView coordinator).
+    func testManyElementDiagramInNarrowContainerRespectsFloor() {
+        var lines = ["flowchart TD"]
+        for i in 0..<24 { lines.append("N\(i)-->N\(i + 1)") } // ≥20 elements
+        let result = MermaidNativeRenderer.render(code: lines.joined(separator: "\n"), format: .vectorSVG)
+        guard case let .success(.svg(svg), _) = result else {
+            return XCTFail("expected an SVG success, got \(result)")
+        }
+        let size = SVGSizing.intrinsicSize(fromSVG: svg)
+        XCTAssertNotNil(size, "a 25-node flowchart must carry a viewBox")
+        let narrow: CGFloat = 50
+        let height = SVGSizing.displayHeight(for: size, availableWidth: narrow)
+        XCTAssertGreaterThanOrEqual(height, SVGSizing.minimumHeight, "narrow container must not collapse height below 80pt")
+    }
 }
 
 /// End-to-end egress: a REAL mmdr render of an MVP diagram, run through the
