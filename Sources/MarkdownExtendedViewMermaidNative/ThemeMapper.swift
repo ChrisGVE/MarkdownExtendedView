@@ -117,10 +117,13 @@ public enum ThemeMapper {
             return (c.redComponent, c.greenComponent, c.blueComponent, c.alphaComponent)
         }
         // sRGB conversion can fail for pattern/catalog colors. Reading
-        // `redComponent` on a non-RGB NSColor raises an exception, so fall back
-        // to a grayscale read (and a final opaque-black default).
-        var w: CGFloat = 0, a: CGFloat = 1
-        if color.usingColorSpace(.genericGray)?.getWhite(&w, alpha: &a) != nil {
+        // `redComponent` on a non-RGB NSColor raises an exception, so convert to
+        // a grayscale space first (which cannot raise on the resulting gray
+        // color) and read its white component; default to opaque black if even
+        // the grayscale conversion fails.
+        if let gray = color.usingColorSpace(.genericGray) {
+            var w: CGFloat = 0, a: CGFloat = 1
+            gray.getWhite(&w, alpha: &a)
             return (w, w, w, a)
         }
         return (0, 0, 0, 1)

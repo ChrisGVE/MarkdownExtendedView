@@ -106,8 +106,11 @@ public enum MermaidRenderGuard {
         operation: @escaping @Sendable () async -> T
     ) async -> T? {
         // Clamp: a public caller could pass .infinity/.nan/negative; UInt64(.nan)
-        // / UInt64(.infinity) would trap. Non-finite/≤0 ⇒ effectively unbounded.
-        let nanos: UInt64 = seconds.isFinite && seconds > 0
+        // / UInt64(.infinity) would trap. Non-finite, ≤0, OR sub-millisecond
+        // (a degenerate deadline that would round to a 0-ns sleep and spuriously
+        // "time out" before the operation ever runs) ⇒ effectively unbounded.
+        // There is no legitimate sub-ms render deadline (renders take ms+).
+        let nanos: UInt64 = seconds.isFinite && seconds >= 0.001
             ? UInt64(min(seconds, 86_400) * 1_000_000_000)
             : UInt64.max
         return await withTaskGroup(of: T?.self) { group in
@@ -117,7 +120,10 @@ public enum MermaidRenderGuard {
                 return nil
             }
             defer { group.cancelAll() }
-            // The first child to finish decides the outcome (value, or nil = timeout).
+            // Element type is `T?`, so `group.next()` is `T??`. Unwrapping one
+            // layer: operation-wins → .some(.some(v)) → returns v; sleep-wins →
+            // .some(.none) → returns nil (= timeout); empty (impossible w/ 2
+            // tasks) → .none → returns nil.
             if let next = await group.next() {
                 return next
             }
